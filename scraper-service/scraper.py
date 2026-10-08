@@ -370,6 +370,17 @@ def safe_click(driver, element):
 
 
 
+def clean_filename_dots(name):
+    """
+    Replaces all dots in the filename base with spaces (preserving file extension).
+    Example: 'Minions.and.Monsters.2026.mkv' -> 'Minions and Monsters 2026.mkv'
+    """
+    base, ext = os.path.splitext(name)
+    cleaned_base = base.replace('.', ' ')
+    cleaned_base = re.sub(r'\s+', ' ', cleaned_base).strip()
+    return f"{cleaned_base}{ext}"
+
+
 def download_stream_direct(url, target_folder, default_name, total_size=None, progress_callback=None, cancel_event=None, cookies_str=None, bar_width=30):
     """
     Downloads direct video link using Python streaming chunks.
@@ -409,6 +420,9 @@ def download_stream_direct(url, target_folder, default_name, total_size=None, pr
             filename = raw_fn
         else:
             filename = f"movie{ext}"
+
+        # Replace dots with spaces in the movie filename (except the extension)
+        filename = clean_filename_dots(filename)
 
         if not total_size:
             length = resp.headers.get("Content-Length")
@@ -656,9 +670,15 @@ def wait_for_download(download_folder, before_files, total_size=None,
                     full_bar = "#" * bar_width
                     print(f"\r[{full_bar}] 100.0% | {current_mb:.1f}/{total_mb:.1f} MB | done"
                           + " " * 20)
-                else:
-                    full_bar = "#" * bar_width
-                    print(f"\r[{full_bar}] {current_mb:.2f} MB | done          ")
+                final_filename = os.path.basename(target_path)
+                cleaned_final = clean_filename_dots(final_filename)
+                if cleaned_final != final_filename:
+                    new_final_path = os.path.join(download_folder, cleaned_final)
+                    try:
+                        os.rename(target_path, new_final_path)
+                        target_path = new_final_path
+                    except Exception:
+                        pass
                 print(f"Download complete: {os.path.basename(target_path)}")
                 if progress_callback:
                     progress_callback(100.0, "0 MB/s", "COMPLETED")
@@ -1290,8 +1310,10 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
         else:
             print("Could not determine total size - progress bar will show size/speed only.")
 
-        # Clean title for Jellyfin standard naming
+        # Clean title for Jellyfin standard naming: replace dots with spaces
         clean_name = re.sub(r'[\\/*?:"<>|]', "", movie_title).strip()
+        clean_name = clean_name.replace('.', ' ')
+        clean_name = re.sub(r'\s+', ' ', clean_name).strip()
         if tmdb_id and tmdb_id != "unknown":
             jellyfin_filename = f"{clean_name} [tmdbid-{tmdb_id}]"
         else:
