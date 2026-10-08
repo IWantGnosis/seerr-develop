@@ -296,6 +296,22 @@ def create_driver(headless=False, download_folder=None):
     except Exception:
         pass
 
+    # Ensure headless Chromium permits automatic file downloads into target_dir
+    try:
+        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": target_dir
+        })
+    except Exception:
+        pass
+    try:
+        driver.execute_cdp_cmd("Browser.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": target_dir
+        })
+    except Exception:
+        pass
+
     return driver
 
 
@@ -331,6 +347,120 @@ def safe_click(driver, element):
 
 
 
+
+
+def download_stream_direct(url, target_folder, default_name, total_size=None, progress_callback=None, cancel_event=None, cookies_str=None, bar_width=30):
+    """
+    Downloads direct video link using Python streaming chunks.
+    Bypasses headless Chrome download restrictions, reports live progress,
+    and supports instant user cancellation.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Referer": "https://video-seed.dev/",
+    }
+    if cookies_str:
+        headers["Cookie"] = cookies_str
+
+    clean_url = url.split("#")[0].strip()
+    print(f"[Downloader] Opening direct download stream...")
+    req = urllib.request.Request(clean_url, headers=headers)
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        content_disp = resp.headers.get("Content-Disposition", "")
+        filename = None
+        if "filename=" in content_disp:
+            m = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp)
+            if m:
+                filename = m.group(1).strip()
+
+        if not filename:
+            safe_name = re.sub(r'[\\/*?:"<>|]', "", default_name).strip()
+            safe_name = re.sub(r'\s+', '.', safe_name)
+            if not safe_name.lower().endswith(('.mkv', '.mp4')):
+                safe_name += ".mkv"
+            filename = safe_name
+
+        if not total_size:
+            length = resp.headers.get("Content-Length")
+            if length:
+                total_size = int(length)
+
+        final_path = os.path.join(target_folder, filename)
+        part_path = final_path + ".crdownload"
+        print(f"[Downloader] Destination file: {final_path}")
+        if total_size:
+            print(f"[Downloader] File size: {total_size / (1024 * 1024):.1f} MB")
+
+        downloaded_bytes = 0
+        start_time = time.time()
+        last_print_time = start_time
+        last_print_bytes = 0
+
+        with open(part_path, "wb") as f:
+            while True:
+                if cancel_event and cancel_event.is_set():
+                    print("\n[Downloader] Download cancelled by user.")
+                    f.close()
+                    try:
+                        os.remove(part_path)
+                    except Exception:
+                        pass
+                    raise KeyboardInterrupt("Download cancelled by user")
+
+                chunk = resp.read(1024 * 512)
+                if not chunk:
+                    break
+                f.write(chunk)
+                downloaded_bytes += len(chunk)
+
+                now = time.time()
+                if now - last_print_time >= 0.5:
+                    elapsed = now - last_print_time
+                    speed = (downloaded_bytes - last_print_bytes) / elapsed if elapsed > 0 else 0
+                    speed_mb = speed / (1024 * 1024)
+                    current_mb = downloaded_bytes / (1024 * 1024)
+
+                    if total_size and total_size > 0:
+                        total_mb = total_size / (1024 * 1024)
+                        percent = min((downloaded_bytes / total_size) * 100, 100)
+                        remaining = max(total_size - downloaded_bytes, 0)
+                        eta_sec = remaining / speed if speed > 0 else None
+                        eta_str = format_eta(eta_sec)
+                        filled = int(bar_width * percent / 100)
+                        bar = "#" * filled + "-" * (bar_width - filled)
+                        print(
+                            f"\r[{bar}] {percent:5.1f}% | {current_mb:.1f}/{total_mb:.1f} MB | {speed_mb:.2f} MB/s | ETA {eta_str}",
+                            end="",
+                            flush=True
+                        )
+                        if progress_callback:
+                            progress_callback(percent, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
+                    else:
+                        filled = int(time.time() * 4) % bar_width
+                        bar = "".join("#" if i == filled else "-" for i in range(bar_width))
+                        print(
+                            f"\r[{bar}] {current_mb:.2f} MB | {speed_mb:.2f} MB/s | downloading",
+                            end="",
+                            flush=True
+                        )
+                        if progress_callback:
+                            progress_callback(50.0, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
+
+                    last_print_time = now
+                    last_print_bytes = downloaded_bytes
+
+        if os.path.exists(final_path):
+            try:
+                os.remove(final_path)
+            except Exception:
+                pass
+        os.rename(part_path, final_path)
+        print(f"\n[Downloader] Download complete: {filename}")
+        if progress_callback:
+            progress_callback(100.0, "0 MB/s", "COMPLETED")
+        return final_path
 
 
 def get_remote_file_size(url, timeout=8):
@@ -1122,14 +1252,6 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
 
         print(f"Final Download Link: {url}")
 
-        before_files = set(os.listdir(target_folder))
-        driver.get(url)
-
-        #Final URL of the MOVIE LINK ✅✅✅DOWNLOAD!!!
-        # d_link.click()  # Click the download button to start the download
-
-
-
         # Try to get the real total size via HEAD request (Content-Length header).
         # Falls back to parsing it from the title text (e.g. "[900MB]") if that fails.
         total_size = get_remote_file_size(url)
@@ -1140,6 +1262,27 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
         else:
             print("Could not determine total size - progress bar will show size/speed only.")
 
+        # 1. Primary: Direct high-speed Python stream download (reliable, immune to headless restrictions)
+        try:
+            cookies_str = "; ".join(f"{c['name']}={c['value']}" for c in driver.get_cookies())
+            download_stream_direct(
+                url,
+                target_folder,
+                default_name=f"{movie_title}.{preferred_quality}",
+                total_size=total_size,
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+                cookies_str=cookies_str,
+            )
+            return
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            print(f"[Downloader] Direct stream download fallback ({e}). Starting browser download...")
+
+        # 2. Fallback: Headless Chromium download
+        before_files = set(os.listdir(target_folder))
+        driver.get(url)
 
         wait_for_download(
             target_folder,
