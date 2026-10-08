@@ -440,58 +440,66 @@ def download_stream_direct(url, target_folder, default_name, total_size=None, pr
         last_print_time = start_time
         last_print_bytes = 0
 
-        with open(part_path, "wb") as f:
-            while True:
-                if cancel_event and cancel_event.is_set():
-                    print("\n[Downloader] Download cancelled by user.")
-                    f.close()
-                    try:
-                        os.remove(part_path)
-                    except Exception:
-                        pass
-                    raise KeyboardInterrupt("Download cancelled by user")
+        try:
+            with open(part_path, "wb") as f:
+                while True:
+                    if cancel_event and cancel_event.is_set():
+                        print("\n[Downloader] Download cancelled by user.")
+                        f.close()
+                        try:
+                            os.remove(part_path)
+                        except Exception:
+                            pass
+                        raise KeyboardInterrupt("Download cancelled by user")
 
-                chunk = resp.read(1024 * 512)
-                if not chunk:
-                    break
-                f.write(chunk)
-                downloaded_bytes += len(chunk)
+                    chunk = resp.read(1024 * 512)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded_bytes += len(chunk)
 
-                now = time.time()
-                if now - last_print_time >= 0.5:
-                    elapsed = now - last_print_time
-                    speed = (downloaded_bytes - last_print_bytes) / elapsed if elapsed > 0 else 0
-                    speed_mb = speed / (1024 * 1024)
-                    current_mb = downloaded_bytes / (1024 * 1024)
+                    now = time.time()
+                    if now - last_print_time >= 0.5:
+                        elapsed = now - last_print_time
+                        speed = (downloaded_bytes - last_print_bytes) / elapsed if elapsed > 0 else 0
+                        speed_mb = speed / (1024 * 1024)
+                        current_mb = downloaded_bytes / (1024 * 1024)
 
-                    if total_size and total_size > 0:
-                        total_mb = total_size / (1024 * 1024)
-                        percent = min((downloaded_bytes / total_size) * 100, 100)
-                        remaining = max(total_size - downloaded_bytes, 0)
-                        eta_sec = remaining / speed if speed > 0 else None
-                        eta_str = format_eta(eta_sec)
-                        filled = int(bar_width * percent / 100)
-                        bar = "#" * filled + "-" * (bar_width - filled)
-                        print(
-                            f"\r[{bar}] {percent:5.1f}% | {current_mb:.1f}/{total_mb:.1f} MB | {speed_mb:.2f} MB/s | ETA {eta_str}",
-                            end="",
-                            flush=True
-                        )
-                        if progress_callback:
-                            progress_callback(percent, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
-                    else:
-                        filled = int(time.time() * 4) % bar_width
-                        bar = "".join("#" if i == filled else "-" for i in range(bar_width))
-                        print(
-                            f"\r[{bar}] {current_mb:.2f} MB | {speed_mb:.2f} MB/s | downloading",
-                            end="",
-                            flush=True
-                        )
-                        if progress_callback:
-                            progress_callback(50.0, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
+                        if total_size and total_size > 0:
+                            total_mb = total_size / (1024 * 1024)
+                            percent = min((downloaded_bytes / total_size) * 100, 100)
+                            remaining = max(total_size - downloaded_bytes, 0)
+                            eta_sec = remaining / speed if speed > 0 else None
+                            eta_str = format_eta(eta_sec)
+                            filled = int(bar_width * percent / 100)
+                            bar = "#" * filled + "-" * (bar_width - filled)
+                            print(
+                                f"\r[{bar}] {percent:5.1f}% | {current_mb:.1f}/{total_mb:.1f} MB | {speed_mb:.2f} MB/s | ETA {eta_str}",
+                                end="",
+                                flush=True
+                            )
+                            if progress_callback:
+                                progress_callback(percent, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
+                        else:
+                            filled = int(time.time() * 4) % bar_width
+                            bar = "".join("#" if i == filled else "-" for i in range(bar_width))
+                            print(
+                                f"\r[{bar}] {current_mb:.2f} MB | {speed_mb:.2f} MB/s | downloading",
+                                end="",
+                                flush=True
+                            )
+                            if progress_callback:
+                                progress_callback(50.0, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
 
-                    last_print_time = now
-                    last_print_bytes = downloaded_bytes
+                        last_print_time = now
+                        last_print_bytes = downloaded_bytes
+        except Exception:
+            if os.path.exists(part_path):
+                try:
+                    os.remove(part_path)
+                except Exception:
+                    pass
+            raise
 
         if os.path.exists(final_path):
             try:
@@ -597,17 +605,27 @@ def wait_for_download(download_folder, before_files, total_size=None,
             continue
 
         # Step 2: handle the crdownload -> final rename
-        if is_crdownload and not os.path.exists(target_path):
-            final_name = os.path.basename(target_path)[: -len(".crdownload")]
+        if is_crdownload:
+            final_name = os.path.basename(target_path)
+            if final_name.endswith(".crdownload"):
+                final_name = final_name[: -len(".crdownload")]
             final_path = os.path.join(download_folder, final_name)
-            if os.path.exists(final_path):
+
+            # If the final file already exists on disk and is populated (> 10MB)
+            if os.path.exists(final_path) and os.path.getsize(final_path) > 10 * 1024 * 1024:
                 target_path = final_path
                 is_crdownload = False
                 previous_size = -1
                 stable_count = 0
-            else:
-                time.sleep(poll_interval)
-                continue
+            elif not os.path.exists(target_path):
+                if os.path.exists(final_path):
+                    target_path = final_path
+                    is_crdownload = False
+                    previous_size = -1
+                    stable_count = 0
+                else:
+                    time.sleep(poll_interval)
+                    continue
 
         if not os.path.exists(target_path):
             time.sleep(poll_interval)
@@ -660,29 +678,58 @@ def wait_for_download(download_folder, before_files, total_size=None,
             if progress_callback:
                 progress_callback(50.0, f"{speed_mb:.2f} MB/s", "DOWNLOADING")
 
-        if not is_crdownload:
-            if current_size == previous_size:
-                stable_count += 1
-            else:
-                stable_count = 0
-            if stable_count >= stable_checks:
-                if total_size:
-                    full_bar = "#" * bar_width
-                    print(f"\r[{full_bar}] 100.0% | {current_mb:.1f}/{total_mb:.1f} MB | done"
-                          + " " * 20)
-                final_filename = os.path.basename(target_path)
-                cleaned_final = clean_filename_dots(final_filename)
-                if cleaned_final != final_filename:
-                    new_final_path = os.path.join(download_folder, cleaned_final)
-                    try:
-                        os.rename(target_path, new_final_path)
-                        target_path = new_final_path
-                    except Exception:
-                        pass
-                print(f"Download complete: {os.path.basename(target_path)}")
-                if progress_callback:
-                    progress_callback(100.0, "0 MB/s", "COMPLETED")
-                break
+        # Track stability
+        if current_size == previous_size:
+            stable_count += 1
+        else:
+            stable_count = 0
+
+        # Complete if size is stable and:
+        # 1. Not a crdownload, OR
+        # 2. total_size is reached (>= 99.5%), OR
+        # 3. size has been unchanged for at least 8 checks
+        has_finished_bytes = bool(total_size and current_size >= total_size * 0.995)
+        if (not is_crdownload or has_finished_bytes or stable_count >= 8) and stable_count >= stable_checks:
+            final_name = os.path.basename(target_path)
+            if final_name.endswith(".crdownload"):
+                final_name = final_name[: -len(".crdownload")]
+            final_path = os.path.join(download_folder, final_name)
+
+            if is_crdownload and os.path.exists(target_path):
+                try:
+                    if os.path.exists(final_path) and os.path.getsize(final_path) > 10 * 1024 * 1024:
+                        os.remove(target_path)
+                    else:
+                        os.rename(target_path, final_path)
+                    target_path = final_path
+                except Exception:
+                    pass
+
+            cleaned_final = clean_filename_dots(os.path.basename(target_path))
+            if cleaned_final != os.path.basename(target_path):
+                new_final_path = os.path.join(download_folder, cleaned_final)
+                try:
+                    os.rename(target_path, new_final_path)
+                    target_path = new_final_path
+                except Exception:
+                    pass
+
+            # Clean any leftover orphan .crdownload files for this movie
+            try:
+                base_stem = os.path.splitext(os.path.basename(target_path))[0]
+                for f in os.listdir(download_folder):
+                    if f.endswith(".crdownload") and (base_stem[:15].lower() in f.lower()):
+                        try:
+                            os.remove(os.path.join(download_folder, f))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            print(f"\n[Downloader] Download complete: {os.path.basename(target_path)}")
+            if progress_callback:
+                progress_callback(100.0, "0 MB/s", "COMPLETED")
+            break
 
         previous_size = current_size
         previous_time = current_time

@@ -27,16 +27,16 @@ class LogInterceptor:
     def write(self, message):
         self.original_stdout.write(message)
         clean = message.strip()
-        if clean:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            is_progress = message.startswith("\r") or ("[" in clean and "%" in clean and ("MB/s" in clean or "ETA" in clean or "downloading" in clean))
-            if is_progress:
-                if log_buffer and ("%" in log_buffer[-1] and ("MB/s" in log_buffer[-1] or "ETA" in log_buffer[-1] or "downloading" in log_buffer[-1])):
-                    log_buffer[-1] = f"[{timestamp}] {clean}"
-                else:
-                    log_buffer.append(f"[{timestamp}] {clean}")
-            else:
-                log_buffer.append(f"[{timestamp}] {clean}")
+        if not clean:
+            return
+
+        # Suppress carriage-return progress bars (\r[###...]) from spamming the web log stream
+        # (The UI card already renders its own dedicated real-time progress bar)
+        if message.startswith("\r") or ("[" in clean and "%" in clean and ("MB/s" in clean or "ETA" in clean or "downloading" in clean)):
+            return
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_buffer.append(f"[{timestamp}] {clean}")
 
     def flush(self):
         self.original_stdout.flush()
