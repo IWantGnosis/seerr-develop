@@ -111,7 +111,73 @@ job_cancel_events = {}
 job_drivers = {}
 
 
-def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality="1080p", is_indian=None, download_folder=None):
+def mark_seerr_media_available(media_id=None, tmdb_id=None, is_4k=False):
+    """
+    Directly marks the movie as AVAILABLE in Seerr, immediately clearing the
+    pending request state without waiting for a scheduled Jellyfin sync.
+    """
+    candidate_urls = [
+        SEERR_API_URL,
+        "http://seerr:5055/api/v1",
+        "http://localhost:5055/api/v1",
+        "http://192.168.29.75:5055/api/v1",
+    ]
+    unique_urls = list(dict.fromkeys(candidate_urls))
+
+    # 1. Update directly via media_id if available
+    if media_id:
+        for base in unique_urls:
+            try:
+                body = json.dumps({"is4k": is_4k}).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{base}/media/{media_id}/available",
+                    data=body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Api-Key": SEERR_API_KEY
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    print(f"[Notifier] Successfully updated Seerr media {media_id} to AVAILABLE!")
+                    return True
+            except Exception:
+                continue
+
+    # 2. Fallback: Query movie by TMDb ID to find internal mediaId
+    if tmdb_id and tmdb_id != "unknown":
+        for base in unique_urls:
+            try:
+                req = urllib.request.Request(
+                    f"{base}/movie/{tmdb_id}",
+                    headers={"X-Api-Key": SEERR_API_KEY}
+                )
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    m = data.get("mediaInfo") or data.get("media")
+                    if m and m.get("id"):
+                        mid = m.get("id")
+                        body = json.dumps({"is4k": is_4k}).encode("utf-8")
+                        req2 = urllib.request.Request(
+                            f"{base}/media/{mid}/available",
+                            data=body,
+                            headers={
+                                "Content-Type": "application/json",
+                                "X-Api-Key": SEERR_API_KEY
+                            },
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req2, timeout=4) as resp2:
+                            print(f"[Notifier] Successfully updated Seerr media {mid} (TMDb {tmdb_id}) to AVAILABLE!")
+                            return True
+            except Exception:
+                continue
+
+    print(f"[Notifier] Note: Could not auto-sync availability for media {media_id} (TMDb {tmdb_id}).")
+    return False
+
+
+def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality="1080p", is_indian=None, download_folder=None, media_id=None, is_4k=False):
     cancel_event = threading.Event()
     job_cancel_events[job_id] = cancel_event
 
@@ -128,6 +194,11 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
                 jobs[job_id]["status"] = status
                 if status == "COMPLETED":
                     jobs[job_id]["completedAt"] = "Just now"
+                    threading.Thread(
+                        target=mark_seerr_media_available,
+                        args=(media_id, tmdb_id, is_4k),
+                        daemon=True
+                    ).start()
 
         scraper.process_movie(
             movie_title,
@@ -148,10 +219,17 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
                 jobs[job_id]["status"] = "CANCELLED"
                 jobs[job_id]["speed"] = "0 MB/s"
         else:
-            print(f"Scraper error: {e}")
+            err_str = str(e)
+            if "Stacktrace:" in err_str:
+                err_str = err_str.split("Stacktrace:")[0].strip()
+            if "Message:" in err_str:
+                err_str = err_str.split("Message:")[1].strip()
+            if "DevToolsActivePort" in err_str:
+                err_str = "Chromium session failed to start (DevToolsActivePort). The 2GB shared memory update resolves this."
+            print(f"Scraper error: {err_str}")
             if job_id in jobs:
                 jobs[job_id]["status"] = "FAILED"
-                jobs[job_id]["error"] = str(e)
+                jobs[job_id]["error"] = err_str
     finally:
         driver = job_drivers.pop(job_id, None)
         if driver:
@@ -172,6 +250,7 @@ def webhook():
 
     movie_title = data.get("subject", "Unknown Movie")
     tmdb_id = media.get("tmdbId") or "unknown"
+    media_id = media.get("id")
     image = data.get("image", "")
 
     year_match = re.search(r"\((\d{4})\)", movie_title)
@@ -211,7 +290,7 @@ def webhook():
 
     thread = threading.Thread(
         target=run_scraper_job,
-        args=(job_id, movie_title, tmdb_id, poster_path, preferred_quality, is_indian, dest_folder),
+        args=(job_id, movie_title, tmdb_id, poster_path, preferred_quality, is_indian, dest_folder, media_id, is_4k),
         daemon=True,
     )
     thread.start()

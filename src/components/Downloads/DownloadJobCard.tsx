@@ -8,8 +8,8 @@ import {
   CheckCircleIcon,
   ExclamationCircleIcon,
   NoSymbolIcon,
-  TrashIcon,
   XCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { useState } from 'react';
 
@@ -18,6 +18,21 @@ interface DownloadJobCardProps {
   onCancel?: (jobId: string) => Promise<void> | void;
   onDelete?: (jobId: string) => Promise<void> | void;
 }
+
+const cleanErrorMessage = (err: string) => {
+  if (!err) return '';
+  let clean = err;
+  if (clean.includes('Stacktrace:')) {
+    clean = clean.split('Stacktrace:')[0].trim();
+  }
+  if (clean.startsWith('Message:')) {
+    clean = clean.replace('Message:', '').trim();
+  }
+  if (clean.includes('DevToolsActivePort')) {
+    return 'Chromium failed to launch (DevToolsActivePort). The latest update fixes this with 2GB shared memory.';
+  }
+  return clean.slice(0, 180);
+};
 
 const statusBadgeType: Record<
   DownloadStatus,
@@ -100,10 +115,11 @@ const DownloadJobCard = ({ job, onCancel, onDelete }: DownloadJobCardProps) => {
                   type="button"
                   onClick={handleDelete}
                   disabled={isActing}
-                  title="Remove from history"
-                  className="inline-flex items-center rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition focus:outline-none disabled:opacity-50"
+                  title="Dismiss / Clear this card"
+                  aria-label="Dismiss this download card"
+                  className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition focus:outline-none disabled:opacity-50"
                 >
-                  <TrashIcon className="h-4 w-4" />
+                  <XMarkIcon className="h-5 w-5" />
                 </button>
               )}
             </div>
@@ -162,10 +178,12 @@ const DownloadJobCard = ({ job, onCancel, onDelete }: DownloadJobCardProps) => {
             </p>
           )}
           {job.error && (
-            <p className="mt-3 flex items-center gap-1.5 text-sm text-red-300">
-              <ExclamationCircleIcon className="h-5 w-5 flex-shrink-0" />
-              {job.error}
-            </p>
+            <div className="mt-3 flex items-start gap-2 rounded-md bg-red-950/40 p-2.5 text-xs text-red-300 border border-red-800/40">
+              <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0 text-red-400 mt-0.5" />
+              <span className="line-clamp-2 leading-relaxed" title={job.error}>
+                {cleanErrorMessage(job.error)}
+              </span>
+            </div>
           )}
           {job.completedAt && (
             <p className="mt-3 flex items-center gap-1.5 text-sm text-green-300">
