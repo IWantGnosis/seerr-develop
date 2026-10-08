@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # 1. Custom Seerr (With Downloads Tab)
+  seerr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seerr
+    restart: unless-stopped
+    ports:
+      - "5055:5055"
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=Asia/Kolkata
+    volumes:
+      - ~/seerr-config:/app/config
+    depends_on:
+      - scraper
+
+  # 2. Automated Webhook Scraper
+  scraper:
+    build:
+      context: ./scraper-service
+      dockerfile: Dockerfile
+    container_name: seerr-scraper
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SCRAPER_HEADLESS=1
+      - SEERR_API_URL=http://seerr:5055/api/v1
+      - HOLLYWOOD_FOLDER=/media/myfiles/Hollywood Movies
+      - BOLLYWOOD_FOLDER=/media/myfiles/Bollywood Movies
+      - TZ=Asia/Kolkata
+    volumes:
+      # Mount your media libraries so movies download directly into Jellyfin folders
+      - /media/myfiles:/media/myfiles

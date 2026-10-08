@@ -1,0 +1,7 @@
+.git
+node_modules
+.next
+dist
+docker-build-downloads.log
+docker-build-downloads-error.log
+scraper-service

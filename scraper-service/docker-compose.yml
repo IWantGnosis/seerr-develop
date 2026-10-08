@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  scraper-webhook:
+    build: .
+    container_name: scraper-webhook
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SCRAPER_HEADLESS=1
+      - DOWNLOAD_FOLDER=/downloads
+      - TZ=Asia/Kolkata
+    volumes:
+      # Map your host downloads folder to /downloads inside the container
+      - ~/Downloads:/downloads
