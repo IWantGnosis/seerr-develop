@@ -7,6 +7,8 @@ from selenium.webdriver.chrome.service import Service
 import os
 import re
 import time
+import tempfile
+import shutil
 import urllib.request
 from urllib.parse import urlparse, parse_qs
 
@@ -45,12 +47,21 @@ def create_driver(headless=False, download_folder=None):
         options.add_argument("--start-maximized")
 
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-setuid-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-software-rasterizer")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-popup-blocking")
+    options.add_argument("--remote-debugging-pipe")
+    options.add_argument("--disable-features=OptimizationHints,Translate,MediaRouter")
     options.add_argument("--log-level=3")
+
+    # Isolated unique profile for Docker sessions (prevents DevToolsActivePort & SingletonLock collisions)
+    profile_dir = tempfile.mkdtemp(prefix="chrome_ud_")
+    options.add_argument(f"--user-data-dir={profile_dir}")
+    options.add_argument(f"--disk-cache-dir={profile_dir}/cache")
 
     # 2. Stealth & Anti-bot evasion
     options.add_argument("--disable-blink-features=AutomationControlled")
@@ -116,7 +127,17 @@ def create_driver(headless=False, download_folder=None):
                 break
 
     service = Service(executable_path=driver_path, log_output=os.devnull) if driver_path else Service(log_output=os.devnull)
-    driver = webdriver.Chrome(service=service, options=options)
+    try:
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        print(f"[Driver] Pipe mode launch exception: {e}. Retrying with remote port mode...")
+        time.sleep(1)
+        # Fallback without --remote-debugging-pipe
+        options.arguments = [a for a in options.arguments if a != "--remote-debugging-pipe"]
+        options.add_argument("--remote-debugging-port=0")
+        driver = webdriver.Chrome(service=service, options=options)
+
+    driver._profile_dir = profile_dir
 
     # 3. Stealth JavaScript overrides
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -1312,6 +1333,11 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
             driver.quit()
         except Exception:
             pass
+        if hasattr(driver, "_profile_dir") and driver._profile_dir and os.path.exists(driver._profile_dir):
+            try:
+                shutil.rmtree(driver._profile_dir, ignore_errors=True)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
