@@ -390,18 +390,25 @@ def download_stream_direct(url, target_folder, default_name, total_size=None, pr
 
     with urllib.request.urlopen(req, timeout=30) as resp:
         content_disp = resp.headers.get("Content-Disposition", "")
-        filename = None
+        ext = ".mkv"
+        raw_fn = None
         if "filename=" in content_disp:
             m = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp)
             if m:
-                filename = m.group(1).strip()
+                raw_fn = m.group(1).strip()
+                _, e = os.path.splitext(raw_fn)
+                if e.lower() in [".mkv", ".mp4", ".avi"]:
+                    ext = e.lower()
 
-        if not filename:
+        if default_name:
             safe_name = re.sub(r'[\\/*?:"<>|]', "", default_name).strip()
-            safe_name = re.sub(r'\s+', '.', safe_name)
-            if not safe_name.lower().endswith(('.mkv', '.mp4')):
-                safe_name += ".mkv"
+            if not safe_name.lower().endswith(('.mkv', '.mp4', '.avi')):
+                safe_name += ext
             filename = safe_name
+        elif raw_fn:
+            filename = raw_fn
+        else:
+            filename = f"movie{ext}"
 
         if not total_size:
             length = resp.headers.get("Content-Length")
@@ -1007,7 +1014,7 @@ def bypass_verification_gateways(driver, max_wait=45):
     return driver.current_url
 
 
-def process_movie(movie_title, progress_callback=None, auto_select=False, preferred_quality="1080p", headless=False, is_indian=None, download_folder=None, cancel_event=None, on_driver_created=None):
+def process_movie(movie_title, progress_callback=None, auto_select=False, preferred_quality="1080p", headless=False, is_indian=None, download_folder=None, cancel_event=None, on_driver_created=None, tmdb_id=None):
     def check_cancelled():
         if cancel_event and cancel_event.is_set():
             raise KeyboardInterrupt("Scraping cancelled by user")
@@ -1283,13 +1290,20 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
         else:
             print("Could not determine total size - progress bar will show size/speed only.")
 
+        # Clean title for Jellyfin standard naming
+        clean_name = re.sub(r'[\\/*?:"<>|]', "", movie_title).strip()
+        if tmdb_id and tmdb_id != "unknown":
+            jellyfin_filename = f"{clean_name} [tmdbid-{tmdb_id}]"
+        else:
+            jellyfin_filename = clean_name
+
         # 1. Primary: Direct high-speed Python stream download (reliable, immune to headless restrictions)
         try:
             cookies_str = "; ".join(f"{c['name']}={c['value']}" for c in driver.get_cookies())
             download_stream_direct(
                 url,
                 target_folder,
-                default_name=f"{movie_title}.{preferred_quality}",
+                default_name=jellyfin_filename,
                 total_size=total_size,
                 progress_callback=progress_callback,
                 cancel_event=cancel_event,

@@ -2,9 +2,10 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TautulliAPI from '@server/api/tautulli';
 import TheMovieDb from '@server/api/themoviedb';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import { MediaRequestStatus, MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import { User } from '@server/entity/User';
 import type {
@@ -20,6 +21,78 @@ import type { FindOneOptions } from 'typeorm';
 import { EntityNotFoundError, In, IsNull, Not } from 'typeorm';
 
 const mediaRoutes = Router();
+
+mediaRoutes.post('/by-tmdb/:tmdbId/available', async (req, res, next) => {
+  try {
+    const mediaRepository = getRepository(Media);
+    const requestRepository = getRepository(MediaRequest);
+    const tmdbId = Number(req.params.tmdbId);
+    const is4k = String(req.body.is4k) === 'true';
+
+    let media = await mediaRepository.findOne({
+      where: { tmdbId, mediaType: MediaType.MOVIE },
+      relations: ['requests'],
+    });
+
+    if (!media) {
+      media = mediaRepository.create({
+        tmdbId,
+        mediaType: MediaType.MOVIE,
+        status: is4k ? MediaStatus.UNKNOWN : MediaStatus.AVAILABLE,
+        status4k: is4k ? MediaStatus.AVAILABLE : MediaStatus.UNKNOWN,
+        mediaAddedAt: new Date(),
+      });
+    } else {
+      media[is4k ? 'status4k' : 'status'] = MediaStatus.AVAILABLE;
+      media.mediaAddedAt = new Date();
+    }
+
+    await mediaRepository.save(media);
+
+    // Explicitly update all pending requests for this media to COMPLETED
+    const pendingRequests = await requestRepository.find({
+      where: {
+        media: { id: media.id },
+        is4k,
+        status: In([MediaRequestStatus.PENDING, MediaRequestStatus.APPROVED]),
+      },
+    });
+
+    for (const preq of pendingRequests) {
+      preq.status = MediaRequestStatus.COMPLETED;
+      await requestRepository.save(preq);
+    }
+
+    logger.info(`Marked media TMDb ${tmdbId} as AVAILABLE via auto-sync`, {
+      label: 'Media',
+      tmdbId,
+    });
+
+    return res.status(200).json(media);
+  } catch (e) {
+    logger.error('Error marking media available by TMDb ID', {
+      label: 'Media',
+      tmdbId: req.params.tmdbId,
+      message: e.message,
+    });
+    return next({ status: 500, message: e.message });
+  }
+});
+
+mediaRoutes.get('/by-tmdb/:tmdbId', async (req, res, next) => {
+  try {
+    const mediaRepository = getRepository(Media);
+    const media = await mediaRepository.findOne({
+      where: { tmdbId: Number(req.params.tmdbId) },
+    });
+    if (!media) {
+      return res.status(404).json({ message: 'Media not found' });
+    }
+    return res.status(200).json(media);
+  } catch (e) {
+    return next({ status: 500, message: e.message });
+  }
+});
 
 mediaRoutes.get('/', async (req, res, next) => {
   const mediaRepository = getRepository(Media);

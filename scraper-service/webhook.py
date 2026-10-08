@@ -28,7 +28,14 @@ class LogInterceptor:
         clean = message.strip()
         if clean:
             timestamp = datetime.now().strftime("%H:%M:%S")
-            log_buffer.append(f"[{timestamp}] {clean}")
+            is_progress = message.startswith("\r") or ("[" in clean and "%" in clean and ("MB/s" in clean or "ETA" in clean or "downloading" in clean))
+            if is_progress:
+                if log_buffer and ("%" in log_buffer[-1] and ("MB/s" in log_buffer[-1] or "ETA" in log_buffer[-1] or "downloading" in log_buffer[-1])):
+                    log_buffer[-1] = f"[{timestamp}] {clean}"
+                else:
+                    log_buffer.append(f"[{timestamp}] {clean}")
+            else:
+                log_buffer.append(f"[{timestamp}] {clean}")
 
     def flush(self):
         self.original_stdout.flush()
@@ -124,7 +131,27 @@ def mark_seerr_media_available(media_id=None, tmdb_id=None, is_4k=False):
     ]
     unique_urls = list(dict.fromkeys(candidate_urls))
 
-    # 1. Update directly via media_id if available
+    # 1. Update directly via dedicated TMDb ID endpoint (most reliable)
+    if tmdb_id and tmdb_id != "unknown":
+        for base in unique_urls:
+            try:
+                body = json.dumps({"is4k": is_4k}).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{base}/media/by-tmdb/{tmdb_id}/available",
+                    data=body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Api-Key": SEERR_API_KEY
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    print(f"[Notifier] Successfully auto-synced Seerr movie (TMDb {tmdb_id}) to AVAILABLE!")
+                    return True
+            except Exception:
+                continue
+
+    # 2. Update directly via internal media_id if available
     if media_id:
         for base in unique_urls:
             try:
@@ -144,7 +171,7 @@ def mark_seerr_media_available(media_id=None, tmdb_id=None, is_4k=False):
             except Exception:
                 continue
 
-    # 2. Fallback: Query movie by TMDb ID to find internal mediaId
+    # 3. Fallback: Query movie by TMDb ID to find internal mediaId
     if tmdb_id and tmdb_id != "unknown":
         for base in unique_urls:
             try:
@@ -210,6 +237,7 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
             download_folder=download_folder,
             cancel_event=cancel_event,
             on_driver_created=on_driver,
+            tmdb_id=tmdb_id,
         )
 
     except (KeyboardInterrupt, Exception) as e:
