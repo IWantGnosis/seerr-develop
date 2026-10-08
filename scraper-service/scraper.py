@@ -1061,9 +1061,31 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
         movie = movie_title
         results = []
 
-        # Clean search query (strip '(2021)' to ensure search engine finds the title accurately)
-        search_query = re.sub(r"\s*\(\d{4}\)", "", movie).strip()
-        encoded_movie = urllib.parse.quote_plus(search_query)
+        def generate_search_queries(title):
+            queries = []
+            no_year = re.sub(r"\s*\(\d{4}\)", "", title).strip()
+            clean_punc = re.sub(r"[:\-–—/]", " ", no_year)
+            clean_punc = re.sub(r"\s+", " ", clean_punc).strip()
+            if clean_punc:
+                queries.append(clean_punc)
+
+            year_match = re.search(r"\((\d{4})\)", title)
+            main_name = re.split(r"[:\-–—]", no_year)[0].strip()
+            main_name = re.sub(r"\s+", " ", main_name).strip()
+            if year_match and main_name:
+                year = year_match.group(1)
+                queries.append(f"{main_name} ({year})")
+                queries.append(f"{main_name} {year}")
+
+            if main_name and main_name not in queries:
+                queries.append(main_name)
+
+            if no_year not in queries:
+                queries.append(no_year)
+
+            return list(dict.fromkeys(queries))
+
+        search_queries = generate_search_queries(movie)
 
         # Site selection:
         # Bollywood / Indian movies -> MoviesLeech (https://moviesleech.club)
@@ -1088,37 +1110,46 @@ def process_movie(movie_title, progress_callback=None, auto_select=False, prefer
         chosen_site_name = ""
 
         for site_name, base_url in sites_to_try:
-            print(f"Searching on {site_name}: {search_query}...")
-            driver.get(f"{base_url}/search/{encoded_movie}")
-            try:
-                movie_cards = WebDriverWait(driver, 8).until(
-                    EC.presence_of_all_elements_located((By.TAG_NAME, "article"))
-                )
-                site_results = []
-                for card in movie_cards:
-                    try:
-                        img_el = card.find_elements(By.TAG_NAME, "img")
-                        image = img_el[0].get_attribute("src") if img_el else ""
-                        movie_link = card.find_element(By.TAG_NAME, "a").get_attribute("href")
-                        hero_title = card.find_element(By.TAG_NAME, "h2").text
-                        site_results.append({
-                            "image": image,
-                            "title": hero_title,
-                            "link": movie_link,
-                        })
-                    except Exception:
-                        pass
+            site_matched = False
+            for sq in search_queries:
+                check_cancelled()
+                print(f"Searching on {site_name}: {sq}...")
+                encoded_movie = urllib.parse.quote_plus(sq)
+                driver.get(f"{base_url}/search/{encoded_movie}")
+                try:
+                    movie_cards = WebDriverWait(driver, 5).until(
+                        EC.presence_of_all_elements_located((By.TAG_NAME, "article"))
+                    )
+                    site_results = []
+                    for card in movie_cards:
+                        try:
+                            img_el = card.find_elements(By.TAG_NAME, "img")
+                            image = img_el[0].get_attribute("src") if img_el else ""
+                            movie_link = card.find_element(By.TAG_NAME, "a").get_attribute("href")
+                            hero_title = card.find_element(By.TAG_NAME, "h2").text
+                            site_results.append({
+                                "image": image,
+                                "title": hero_title,
+                                "link": movie_link,
+                            })
+                        except Exception:
+                            pass
 
-                if site_results:
-                    best_idx, score = find_best_movie_match(site_results, movie_title)
-                    if score > 0 or not results:
-                        results = site_results
-                        chosen_site_name = site_name
-                        if score > 100:
-                            # Strong match found on this site, no need to check fallback
-                            break
-            except Exception:
-                continue
+                    if site_results:
+                        best_idx, score = find_best_movie_match(site_results, movie_title)
+                        if score > 0:
+                            results = site_results
+                            chosen_site_name = site_name
+                            site_matched = True
+                            if score > 100:
+                                break
+                except Exception:
+                    continue
+
+            if site_matched and results:
+                best_idx, score = find_best_movie_match(results, movie_title)
+                if score > 100:
+                    break
 
         if not results:
             print(f"No results found for '{movie_title}' on any platform.")
