@@ -26,8 +26,10 @@ def rename_media_in_dir(directory):
     for root, dirs, files in os.walk(directory, topdown=False):
         # 1. Rename files
         for filename in files:
+            if filename.endswith(".crdownload") or filename.endswith(".part") or filename.endswith(".tmp"):
+                continue
             ext = os.path.splitext(filename)[1].lower()
-            if ext in MEDIA_EXTENSIONS or ext == "":
+            if ext in MEDIA_EXTENSIONS:
                 base = os.path.splitext(filename)[0]
                 if "." in base:
                     new_filename = clean_dots(filename)

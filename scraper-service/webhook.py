@@ -10,6 +10,7 @@ import collections
 from datetime import datetime
 import urllib.request
 import scrapers.scraper as scraper
+import rename_clean_dots
 
 # Silence GET /api/downloads and /api/logs terminal spam
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -221,6 +222,14 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
                 jobs[job_id]["status"] = status
                 if status == "COMPLETED":
                     jobs[job_id]["completedAt"] = "Just now"
+                    # 1. Automatically run dot-to-space rename cleanup on the download folder
+                    if download_folder and os.path.exists(download_folder):
+                        try:
+                            rename_clean_dots.rename_media_in_dir(download_folder)
+                        except Exception as re_err:
+                            print(f"[Cleaner] Post-download clean error: {re_err}")
+
+                    # 2. Mark media as AVAILABLE in Seerr
                     threading.Thread(
                         target=mark_seerr_media_available,
                         args=(media_id, tmdb_id, is_4k),
@@ -399,9 +408,18 @@ def get_logs():
     return jsonify(list(log_buffer))
 
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Webhook server is running!"
+def auto_clean_existing_libraries():
+    time.sleep(3)
+    print("[Cleaner] Running automatic dot-to-space check on media libraries...")
+    for path in [HOLLYWOOD_DIR, BOLLYWOOD_DIR]:
+        if os.path.exists(path):
+            try:
+                rename_clean_dots.rename_media_in_dir(path)
+            except Exception as e:
+                print(f"[Cleaner] Error scanning {path}: {e}")
+    print("[Cleaner] Media libraries check complete.")
+
+threading.Thread(target=auto_clean_existing_libraries, daemon=True).start()
 
 
 if __name__ == "__main__":
