@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import threading
 import time
 import re
@@ -406,6 +406,18 @@ def delete_job(job_id):
 @app.route("/api/logs", methods=["GET"])
 def get_logs():
     return jsonify(list(log_buffer))
+
+
+@app.route("/plugins/<path:filename>", methods=["GET"])
+def serve_plugins(filename):
+    """Serve Jellyfin plugin repository manifest and packages."""
+    plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins")
+    if not os.path.exists(os.path.join(plugins_dir, filename)):
+        # Fallback to ../jellyfin-plugin-autofix
+        fallback_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "jellyfin-plugin-autofix"))
+        if os.path.exists(os.path.join(fallback_dir, filename)):
+            return send_from_directory(fallback_dir, filename)
+    return send_from_directory(plugins_dir, filename)
 
 
 def auto_clean_existing_libraries():
