@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
@@ -63,21 +65,110 @@ public class AutoFixLibraryScanTask : IScheduledTask
         };
     }
 
+    /// <summary>
+    /// Retrieves movies from ILibraryManager dynamically to guarantee compatibility across
+    /// Jellyfin 10.9, 10.10, and 12.x where the compiled return type of GetItemList changed.
+    /// </summary>
+    private List<Movie> GetMoviesFromLibrary()
+    {
+        var query = new InternalItemsQuery
+        {
+            IncludeItemTypes = new[] { BaseItemKind.Movie },
+            Recursive = true,
+            IsVirtualItem = false
+        };
+
+        try
+        {
+            // 1. Try GetItemList(InternalItemsQuery) via reflection
+            var getItemListMethod = _libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+            if (getItemListMethod != null)
+            {
+                var result = getItemListMethod.Invoke(_libraryManager, new object[] { query });
+                if (result is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Movie>().ToList();
+                }
+            }
+
+            // 2. Fallback: Try GetItemsResult(InternalItemsQuery)
+            var getItemsResultMethod = _libraryManager.GetType().GetMethod("GetItemsResult", new[] { typeof(InternalItemsQuery) });
+            if (getItemsResultMethod != null)
+            {
+                var queryResult = getItemsResultMethod.Invoke(_libraryManager, new object[] { query });
+                var itemsProp = queryResult?.GetType().GetProperty("Items");
+                if (itemsProp?.GetValue(queryResult) is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Movie>().ToList();
+                }
+            }
+
+            // 3. Fallback: Try QueryItems(InternalItemsQuery)
+            var queryItemsMethod = _libraryManager.GetType().GetMethod("QueryItems", new[] { typeof(InternalItemsQuery) });
+            if (queryItemsMethod != null)
+            {
+                var queryResult = queryItemsMethod.Invoke(_libraryManager, new object[] { query });
+                var itemsProp = queryResult?.GetType().GetProperty("Items");
+                if (itemsProp?.GetValue(queryResult) is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Movie>().ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AutoFix: Failed to query movie items from library manager dynamically.");
+        }
+
+        return new List<Movie>();
+    }
+
+    private void QueueMovieRefresh(Movie movie)
+    {
+        try
+        {
+            var refreshOptions = new MetadataRefreshOptions(new DirectoryService(_fileSystem))
+            {
+                MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
+                ImageRefreshMode = MetadataRefreshMode.FullRefresh,
+                ReplaceAllMetadata = false,
+                ReplaceAllImages = false
+            };
+
+            // Try invoking QueueRefresh via reflection
+            var queueMethod = _providerManager.GetType().GetMethod("QueueRefresh", new[] { typeof(Guid), typeof(MetadataRefreshOptions), typeof(RefreshPriority) });
+            if (queueMethod != null)
+            {
+                queueMethod.Invoke(_providerManager, new object[] { movie.Id, refreshOptions, RefreshPriority.Normal });
+                return;
+            }
+
+            var queueFallback = _providerManager.GetType().GetMethod("QueueRefresh", new[] { typeof(Guid), typeof(MetadataRefreshOptions) });
+            if (queueFallback != null)
+            {
+                queueFallback.Invoke(_providerManager, new object[] { movie.Id, refreshOptions });
+                return;
+            }
+
+            // Fallback: direct refresh
+            _ = movie.RefreshMetadata(refreshOptions, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AutoFix: Failed to queue refresh for movie '{Name}'", movie.Name);
+        }
+    }
+
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         _logger.LogInformation("AutoFix: Starting library healing scan...");
 
-        var movies = _libraryManager.GetItemList(new InternalItemsQuery
-        {
-            IncludeItemTypes = new[] { BaseItemKind.Movie },
-            Recursive = true,
-            IsVirtualItem = false
-        }).OfType<Movie>().ToList();
+        var movies = GetMoviesFromLibrary();
 
         if (movies.Count == 0)
         {
-            _logger.LogInformation("AutoFix: No movies found in library.");
+            _logger.LogInformation("AutoFix: No movies found in library or library query returned empty.");
             progress.Report(100.0);
             return;
         }
@@ -98,15 +189,7 @@ public class AutoFixLibraryScanTask : IScheduledTask
                 _logger.LogInformation("AutoFix: Healing movie '{Name}' (Missing poster: {MissingPoster}, Missing TMDb: {MissingTmdb})",
                     movie.Name, missingPrimaryImage, missingTmdb);
 
-                // Queue a refresh with Jellyfin's provider manager
-                _providerManager.QueueRefresh(movie.Id, new MetadataRefreshOptions(new DirectoryService(_fileSystem))
-                {
-                    MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
-                    ImageRefreshMode = MetadataRefreshMode.FullRefresh,
-                    ReplaceAllMetadata = false,
-                    ReplaceAllImages = false
-                }, RefreshPriority.Normal);
-
+                QueueMovieRefresh(movie);
                 healedCount++;
             }
 

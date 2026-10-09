@@ -8,35 +8,35 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
+        "version": "1.0.1.0",
+        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "5d6d146328d1a4587032a8cf88719669",
+        "checksum": "707893d161616fa95c5ec7e1c313acd7",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
+        "version": "1.0.1.0",
+        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "5d6d146328d1a4587032a8cf88719669",
+        "checksum": "707893d161616fa95c5ec7e1c313acd7",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
+        "version": "1.0.1.0",
+        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "5d6d146328d1a4587032a8cf88719669",
+        "checksum": "707893d161616fa95c5ec7e1c313acd7",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
+        "version": "1.0.1.0",
+        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "5d6d146328d1a4587032a8cf88719669",
+        "checksum": "707893d161616fa95c5ec7e1c313acd7",
         "timestamp": "2026-10-09T00:00:00Z"
       }
     ]
