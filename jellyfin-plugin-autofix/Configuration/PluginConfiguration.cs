@@ -33,6 +33,16 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TmdbApiKey { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether to clean junk files (.txt, .url, .nfo, sample clips) in movie folders.
+    /// </summary>
+    public bool EnableFolderCleaner { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to remove older duplicate versions of a movie when a new version is added.
+    /// </summary>
+    public bool EnableDuplicateCleaner { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets comma-separated custom release tags to strip.
     /// </summary>
     public string CustomTagsToStrip { get; set; } = "moviesmod,bollyflix,hdhub4u,vegamovies,katmoviehd,pahe,yts,yify,psa,rarbg,galaxyrg,1080p,720p,2160p,4k,10bit,hevc,x264,x265,web-dl,bluray";

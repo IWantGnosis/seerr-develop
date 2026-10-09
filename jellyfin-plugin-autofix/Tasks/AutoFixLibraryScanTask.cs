@@ -184,6 +184,22 @@ public class AutoFixLibraryScanTask : IScheduledTask
             bool missingPrimaryImage = !movie.HasImage(ImageType.Primary);
             bool missingTmdb = string.IsNullOrEmpty(movie.GetProviderId(MetadataProvider.Tmdb));
 
+            // Clean folder junk / duplicates if enabled
+            if (!string.IsNullOrWhiteSpace(movie.Path))
+            {
+                var cfg = Plugin.Instance?.Configuration;
+                if (cfg?.EnableFolderCleaner == true || cfg?.EnableDuplicateCleaner == true)
+                {
+                    string dir = Path.GetDirectoryName(movie.Path) ?? string.Empty;
+                    FolderCleaner.CleanMovieFolder(
+                        dir,
+                        movie.Path,
+                        cfg?.EnableFolderCleaner ?? true,
+                        cfg?.EnableDuplicateCleaner ?? true,
+                        _logger);
+                }
+            }
+
             if (missingPrimaryImage || missingTmdb)
             {
                 _logger.LogInformation("AutoFix: Healing movie '{Name}' (Missing poster: {MissingPoster}, Missing TMDb: {MissingTmdb})",

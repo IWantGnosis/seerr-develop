@@ -123,6 +123,18 @@ public class AutoFixMovieMetadataProvider : IRemoteMetadataProvider<Movie, Movie
                 {
                     TryInPlaceRename(info.Path, details.Title, result.Item.ProductionYear, details.Id);
                 }
+
+                // 5. Automatic folder cleaning (junk files, sample clips, duplicate older versions)
+                if (!string.IsNullOrWhiteSpace(info.Path) && (config?.EnableFolderCleaner == true || config?.EnableDuplicateCleaner == true))
+                {
+                    string dir = Path.GetDirectoryName(info.Path) ?? string.Empty;
+                    FolderCleaner.CleanMovieFolder(
+                        dir,
+                        info.Path,
+                        config?.EnableFolderCleaner ?? true,
+                        config?.EnableDuplicateCleaner ?? true,
+                        _logger);
+                }
             }
         }
 

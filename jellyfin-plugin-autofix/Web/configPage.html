@@ -51,6 +51,26 @@
 
                         <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
                             <label>
+                                <input type="checkbox" id="chkEnableFolderCleaner" is="emby-checkbox" />
+                                <span>Folder Maintenance &amp; Junk File Cleaner</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Automatically purges junk files left behind by releases (e.g., <code>.txt</code>, <code>.url</code>, <code>.nfo</code>, <code>.exe</code>, sample clips &lt; 75MB) and empty folders.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
+                            <label>
+                                <input type="checkbox" id="chkEnableDuplicateCleaner" is="emby-checkbox" />
+                                <span>Auto-Remove Older/Duplicate Versions</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                When a new movie is added or upgraded, automatically removes old or duplicate video files in the movie folder to save disk space.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
+                            <label>
                                 <input type="checkbox" id="chkEnableInPlaceRenaming" is="emby-checkbox" />
                                 <span>Optional In-Place File Renamer</span>
                             </label>
@@ -109,6 +129,8 @@
                         document.querySelector('#chkEnableSanitizer').checked = config.EnableSanitizer !== false;
                         document.querySelector('#chkEnableFuzzyMatcher').checked = config.EnableFuzzyMatcher !== false;
                         document.querySelector('#chkEnableAutoArtwork').checked = config.EnableAutoArtwork !== false;
+                        document.querySelector('#chkEnableFolderCleaner').checked = config.EnableFolderCleaner !== false;
+                        document.querySelector('#chkEnableDuplicateCleaner').checked = config.EnableDuplicateCleaner !== false;
                         document.querySelector('#chkEnableInPlaceRenaming').checked = config.EnableInPlaceRenaming === true;
                         document.querySelector('#txtTmdbApiKey').value = config.TmdbApiKey || '';
                         document.querySelector('#txtCustomTags').value = config.CustomTagsToStrip || '';
@@ -128,6 +150,8 @@
                         config.EnableSanitizer = document.querySelector('#chkEnableSanitizer').checked;
                         config.EnableFuzzyMatcher = document.querySelector('#chkEnableFuzzyMatcher').checked;
                         config.EnableAutoArtwork = document.querySelector('#chkEnableAutoArtwork').checked;
+                        config.EnableFolderCleaner = document.querySelector('#chkEnableFolderCleaner').checked;
+                        config.EnableDuplicateCleaner = document.querySelector('#chkEnableDuplicateCleaner').checked;
                         config.EnableInPlaceRenaming = document.querySelector('#chkEnableInPlaceRenaming').checked;
                         config.TmdbApiKey = document.querySelector('#txtTmdbApiKey').value;
                         config.CustomTagsToStrip = document.querySelector('#txtCustomTags').value;

@@ -2,41 +2,41 @@
   {
     "guid": "d34db33f-c1e4-4d2a-89a1-55c3c0ffee01",
     "name": "AutoFix",
-    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, and injects posters so movies never appear as grey boxes.",
-    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, and automatically injecting posters and backdrops.",
+    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans junk/duplicate files.",
+    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and auto-cleaning junk/duplicate files.",
     "owner": "IWantGnosis",
     "category": "General",
     "versions": [
       {
-        "version": "1.0.1.0",
-        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
+        "version": "1.0.2.0",
+        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "707893d161616fa95c5ec7e1c313acd7",
+        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.1.0",
-        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
+        "version": "1.0.2.0",
+        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "707893d161616fa95c5ec7e1c313acd7",
+        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.1.0",
-        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
+        "version": "1.0.2.0",
+        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "707893d161616fa95c5ec7e1c313acd7",
+        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.1.0",
-        "changelog": "v1.0.1: Add reflection-based dynamic library query for complete Jellyfin 10.9, 10.10, and 12.x compatibility.",
+        "version": "1.0.2.0",
+        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "707893d161616fa95c5ec7e1c313acd7",
+        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
         "timestamp": "2026-10-09T00:00:00Z"
       }
     ]
