@@ -54,14 +54,19 @@ export const cancelDownloadJob = async (jobId: string): Promise<boolean> => {
 export const deleteDownloadJob = async (jobId: string): Promise<boolean> => {
   try {
     const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/${jobId}`, {
+    const res = await fetch(`http://${host}:5000/api/downloads/${jobId}/delete`, {
+      method: 'POST',
+    });
+    if (res.ok) return true;
+    const res2 = await fetch(`http://${host}:5000/api/downloads/${jobId}`, {
       method: 'DELETE',
     });
-    return res.ok;
+    return res2.ok;
   } catch {
     return false;
   }
 };
+
 
 export const clearCompletedDownloads = async (): Promise<boolean> => {
   try {

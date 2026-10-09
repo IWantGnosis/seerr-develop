@@ -45,7 +45,55 @@ sys.stdout = LogInterceptor(sys.stdout)
 
 SEERR_API_KEY = "MTc5MTAzMzU5ODIwM2ZkZDA3YmM5LTQ2OTctNDYyMy1iZGZmLTgyZGE5NzhiOWE2MA=="
 SEERR_API_URL = os.environ.get("SEERR_API_URL", "http://seerr:5055/api/v1")
+JELLYFIN_API_KEY = os.environ.get("JELLYFIN_API_KEY", "3b9832f7a92f4db9ad9655a021c38fed")
+JELLYFIN_TASK_ID = "32b3cf16bac4a2b0068fb5e08d48d20f"
 INDIAN_LANGUAGES = {"hi", "ta", "te", "ml", "kn", "pa", "bn", "mr", "gu", "ur"}
+
+
+def trigger_jellyfin_autofix_pipeline(delay_sec=10):
+    """
+    Automated post-download pipeline:
+    1. Triggers Jellyfin to scan library for the newly downloaded file.
+    2. Waits for Jellyfin to resolve TMDb metadata.
+    3. Triggers AutoFix scheduled task to cleanly rename the file to Title (Year).ext.
+    """
+    candidate_urls = [
+        os.environ.get("JELLYFIN_URL", "http://jellyfin:8096"),
+        "http://192.168.29.75:8096",
+        "http://localhost:8096",
+        "http://127.0.0.1:8096",
+    ]
+    unique_urls = list(dict.fromkeys(candidate_urls))
+    headers = {
+        "Authorization": f'MediaBrowser Client="SeerrScraper", Device="Server", DeviceId="seerr-scraper", Version="1.0.0", Token="{JELLYFIN_API_KEY}"',
+        "Content-Type": "application/json",
+    }
+
+    # Step 1: Refresh Jellyfin library so it scans the new movie file
+    for base in unique_urls:
+        try:
+            req = urllib.request.Request(f"{base}/Library/Refresh", data=b"", headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=4):
+                print(f"[Pipeline] Successfully requested Jellyfin library scan via {base}")
+                break
+        except Exception:
+            continue
+
+    # Step 2: Give Jellyfin a few seconds to discover and fetch TMDb metadata
+    print(f"[Pipeline] Waiting {delay_sec}s for Jellyfin to index and fetch TMDb metadata...")
+    time.sleep(delay_sec)
+
+    # Step 3: Trigger AutoFix scheduled task to rename the movie in-place using confirmed metadata
+    for base in unique_urls:
+        try:
+            req = urllib.request.Request(f"{base}/ScheduledTasks/Running/{JELLYFIN_TASK_ID}", data=b"", headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=5):
+                print(f"[Pipeline] Triggered AutoFix clean renaming task via {base}!")
+                break
+        except Exception:
+            continue
+
+
 
 # Media Library Destination Directories
 HOLLYWOOD_DIR = os.environ.get("HOLLYWOOD_FOLDER", "/media/myfiles/Hollywood Movies")
@@ -237,6 +285,13 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
                         daemon=True
                     ).start()
 
+                    # 3. Automatically trigger Jellyfin library scan + AutoFix in-place renaming
+                    threading.Thread(
+                        target=trigger_jellyfin_autofix_pipeline,
+                        daemon=True
+                    ).start()
+
+
         scraper.process_movie(
             movie_title,
             progress_callback=update_progress,
@@ -344,6 +399,11 @@ def webhook():
 
 @app.route("/api/downloads", methods=["GET"])
 def get_downloads():
+    # Auto-prune completed/cancelled jobs if more than 5 exist to keep history clean
+    finished = [jid for jid, j in jobs.items() if j.get("status") in ["COMPLETED", "FAILED", "CANCELLED"]]
+    if len(finished) > 5:
+        for old_id in finished[:-5]:
+            del jobs[old_id]
     return jsonify(list(jobs.values()))
 
 
@@ -375,8 +435,10 @@ def cancel_job(job_id):
     return jsonify({"error": "Job not found"}), 404
 
 
-@app.route("/api/downloads/<job_id>", methods=["DELETE", "OPTIONS"])
+@app.route("/api/downloads/<job_id>", methods=["DELETE", "POST", "OPTIONS"])
+@app.route("/api/downloads/<job_id>/delete", methods=["POST", "DELETE", "OPTIONS"])
 def delete_job(job_id):
+
     if request.method == "OPTIONS":
         return "", 200
 
