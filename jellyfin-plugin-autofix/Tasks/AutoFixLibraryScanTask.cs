@@ -184,19 +184,13 @@ public class AutoFixLibraryScanTask : IScheduledTask
             bool missingPrimaryImage = !movie.HasImage(ImageType.Primary);
             bool missingTmdb = string.IsNullOrEmpty(movie.GetProviderId(MetadataProvider.Tmdb));
 
-            // Clean folder junk / duplicates if enabled
-            if (!string.IsNullOrWhiteSpace(movie.Path))
+            // Safely rename file on disk to clean title (removes dots & release tags, NO DELETIONS)
+            if (!string.IsNullOrWhiteSpace(movie.Path) && File.Exists(movie.Path))
             {
                 var cfg = Plugin.Instance?.Configuration;
-                if (cfg?.EnableFolderCleaner == true || cfg?.EnableDuplicateCleaner == true)
+                if (cfg?.EnableInPlaceRenaming != false)
                 {
-                    string dir = Path.GetDirectoryName(movie.Path) ?? string.Empty;
-                    FolderCleaner.CleanMovieFolder(
-                        dir,
-                        movie.Path,
-                        cfg?.EnableFolderCleaner ?? true,
-                        cfg?.EnableDuplicateCleaner ?? true,
-                        _logger);
+                    TryCleanRename(movie);
                 }
             }
 
@@ -216,5 +210,45 @@ public class AutoFixLibraryScanTask : IScheduledTask
         _logger.LogInformation("AutoFix: Scan completed. Queued healing for {Count} of {Total} movies.", healedCount, total);
         progress.Report(100.0);
         await Task.CompletedTask;
+    }
+
+    private void TryCleanRename(Movie movie)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(movie.Path) || !File.Exists(movie.Path))
+            {
+                return;
+            }
+
+            string currentPath = movie.Path;
+            string fileName = Path.GetFileName(currentPath);
+            var parsed = CleanTitleParser.Parse(fileName, Plugin.Instance?.Configuration.CustomTagsToStrip);
+
+            if (!parsed.WasModified || string.IsNullOrWhiteSpace(parsed.CleanTitle))
+            {
+                return;
+            }
+
+            string dir = Path.GetDirectoryName(currentPath) ?? string.Empty;
+            string ext = Path.GetExtension(currentPath);
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            string safeTitle = new string(parsed.CleanTitle.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+            int? year = parsed.Year ?? movie.ProductionYear;
+            string yearPart = year.HasValue ? $" ({year.Value})" : string.Empty;
+            string newFileName = $"{safeTitle}{yearPart}{ext}";
+            string newPath = Path.Combine(dir, newFileName);
+
+            if (!string.Equals(currentPath, newPath, StringComparison.OrdinalIgnoreCase) && !File.Exists(newPath))
+            {
+                File.Move(currentPath, newPath);
+                movie.Path = newPath;
+                _logger.LogInformation("AutoFix: In-place cleanly renamed movie file on disk from '{Old}' to '{New}'", currentPath, newPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AutoFix: Could not rename movie file '{Path}'", movie.Path);
+        }
     }
 }

@@ -118,22 +118,10 @@ public class AutoFixMovieMetadataProvider : IRemoteMetadataProvider<Movie, Movie
                     result.Item.SetProviderId(MetadataProvider.Imdb, details.ImdbId);
                 }
 
-                // 4. Optional In-Place Renaming on disk if enabled
-                if (config?.EnableInPlaceRenaming == true && !string.IsNullOrWhiteSpace(info.Path) && File.Exists(info.Path))
+                // 4. In-Place Renaming on disk if enabled (removes dots and junk tags)
+                if (config?.EnableInPlaceRenaming != false && !string.IsNullOrWhiteSpace(info.Path) && File.Exists(info.Path))
                 {
                     TryInPlaceRename(info.Path, details.Title, result.Item.ProductionYear, details.Id);
-                }
-
-                // 5. Automatic folder cleaning (junk files, sample clips, duplicate older versions)
-                if (!string.IsNullOrWhiteSpace(info.Path) && (config?.EnableFolderCleaner == true || config?.EnableDuplicateCleaner == true))
-                {
-                    string dir = Path.GetDirectoryName(info.Path) ?? string.Empty;
-                    FolderCleaner.CleanMovieFolder(
-                        dir,
-                        info.Path,
-                        config?.EnableFolderCleaner ?? true,
-                        config?.EnableDuplicateCleaner ?? true,
-                        _logger);
                 }
             }
         }
@@ -189,13 +177,13 @@ public class AutoFixMovieMetadataProvider : IRemoteMetadataProvider<Movie, Movie
             string safeTitle = new string(cleanTitle.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
 
             string yearPart = year.HasValue ? $" ({year.Value})" : string.Empty;
-            string newFileName = $"{safeTitle}{yearPart} [tmdbid-{tmdbId}]{ext}";
+            string newFileName = $"{safeTitle}{yearPart}{ext}";
             string newPath = Path.Combine(dir, newFileName);
 
             if (!string.Equals(currentPath, newPath, StringComparison.OrdinalIgnoreCase) && !File.Exists(newPath))
             {
                 File.Move(currentPath, newPath);
-                _logger.LogInformation("AutoFix: In-place renamed file from '{Old}' to '{New}'", currentPath, newPath);
+                _logger.LogInformation("AutoFix: In-place cleanly renamed movie file on disk from '{Old}' to '{New}'", currentPath, newPath);
             }
         }
         catch (Exception ex)

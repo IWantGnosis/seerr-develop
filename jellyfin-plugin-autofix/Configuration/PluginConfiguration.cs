@@ -23,24 +23,14 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool EnableAutoArtwork { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to rename files in-place on disk to standard naming.
+    /// Gets or sets a value indicating whether to rename files on disk (removing dots and release tags) to standard clean naming.
     /// </summary>
-    public bool EnableInPlaceRenaming { get; set; } = false;
+    public bool EnableInPlaceRenaming { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a custom TMDb API key. If empty, a built-in fallback key is used.
     /// </summary>
     public string TmdbApiKey { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to clean junk files (.txt, .url, .nfo, sample clips) in movie folders.
-    /// </summary>
-    public bool EnableFolderCleaner { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to remove older duplicate versions of a movie when a new version is added.
-    /// </summary>
-    public bool EnableDuplicateCleaner { get; set; } = true;
 
     /// <summary>
     /// Gets or sets comma-separated custom release tags to strip.

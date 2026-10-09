@@ -2,41 +2,41 @@
   {
     "guid": "d34db33f-c1e4-4d2a-89a1-55c3c0ffee01",
     "name": "AutoFix",
-    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans junk/duplicate files.",
-    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and auto-cleaning junk/duplicate files.",
+    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans movie filenames in-place.",
+    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and cleanly renaming messy media files on disk without deleting any files.",
     "owner": "IWantGnosis",
     "category": "General",
     "versions": [
       {
-        "version": "1.0.2.0",
-        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
+        "version": "1.0.3.0",
+        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie filenames (removing dots and release tags) without deleting any media files.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
+        "checksum": "c799df8b83b394cc1bb3d5b69195b2c4",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.2.0",
-        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
+        "version": "1.0.3.0",
+        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie filenames (removing dots and release tags) without deleting any media files.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
+        "checksum": "c799df8b83b394cc1bb3d5b69195b2c4",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.2.0",
-        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
+        "version": "1.0.3.0",
+        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie filenames (removing dots and release tags) without deleting any media files.",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
+        "checksum": "c799df8b83b394cc1bb3d5b69195b2c4",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.2.0",
-        "changelog": "v1.0.2: Added Folder Maintenance & Duplicate Movie Cleaner. Fixed reflection queries for universal Jellyfin 10.9/10.10/12.x compatibility.",
+        "version": "1.0.3.0",
+        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie filenames (removing dots and release tags) without deleting any media files.",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "7eb1e496f86ee6bb0b41b4a3457b8dc0",
+        "checksum": "c799df8b83b394cc1bb3d5b69195b2c4",
         "timestamp": "2026-10-09T00:00:00Z"
       }
     ]
