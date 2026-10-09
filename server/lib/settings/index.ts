@@ -594,8 +594,9 @@ class Settings {
           schedule: '0 30 4 * * *',
         },
         'availability-sync': {
-          schedule: '0 0 5 * * *',
+          schedule: '0 */30 * * * *',
         },
+
         'download-sync': {
           schedule: '0 * * * * *',
         },

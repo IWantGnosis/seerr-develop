@@ -5,6 +5,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import DownloadJobCard from '@app/components/Downloads/DownloadJobCard';
 import {
   cancelDownloadJob,
+  clearCompletedDownloads,
   deleteDownloadJob,
   getDownloadJobs,
   getScraperLogs,
@@ -15,7 +16,9 @@ import {
   ArrowPathIcon,
   CommandLineIcon,
   ExclamationTriangleIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
+
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
@@ -70,6 +73,11 @@ const Downloads = () => {
     await mutate();
   };
 
+  const handleClearCompleted = async () => {
+    await clearCompletedDownloads();
+    await mutate();
+  };
+
   const { data: logs } = useSWR(
     showLogs ? 'downloads/scraper-logs' : null,
     getScraperLogs,
@@ -84,6 +92,10 @@ const Downloads = () => {
     }
   }, [logs, showLogs]);
 
+  const hasFinishedJobs = jobs?.some((j) =>
+    ['COMPLETED', 'FAILED', 'CANCELLED'].includes(j.status)
+  );
+
   const filteredJobs = jobs?.filter((job) => matchesFilter(job, filter)) ?? [];
   return (
     <>
@@ -91,6 +103,18 @@ const Downloads = () => {
       <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <Header>Downloads</Header>
         <div className="flex flex-wrap items-center gap-2">
+          {hasFinishedJobs && (
+            <button
+              type="button"
+              onClick={handleClearCompleted}
+              className="inline-flex items-center gap-1.5 rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-gray-300 hover:bg-red-900/40 hover:text-red-200 transition focus:outline-none focus:ring-2 focus:ring-red-500"
+              title="Clear all completed and cancelled download cards"
+            >
+              <TrashIcon className="h-4 w-4 text-gray-400" />
+              <span>Clear Completed</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowLogs(!showLogs)}
@@ -107,6 +131,7 @@ const Downloads = () => {
             <CommandLineIcon className="h-4 w-4" />
             <span>{showLogs ? 'Hide Scraper Logs' : 'View Scraper Logs'}</span>
           </button>
+
 
           <div
             className="flex gap-2 overflow-x-auto pb-1"

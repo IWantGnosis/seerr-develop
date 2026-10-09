@@ -63,6 +63,19 @@ export const deleteDownloadJob = async (jobId: string): Promise<boolean> => {
   }
 };
 
+export const clearCompletedDownloads = async (): Promise<boolean> => {
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    const res = await fetch(`http://${host}:5000/api/downloads/clear-completed`, {
+      method: 'POST',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
+
 export const getScraperLogs = async (): Promise<string[]> => {
   try {
     const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';

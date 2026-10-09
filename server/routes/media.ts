@@ -49,19 +49,18 @@ mediaRoutes.post('/by-tmdb/:tmdbId/available', async (req, res, next) => {
 
     await mediaRepository.save(media);
 
-    // Explicitly update all pending requests for this media to COMPLETED
-    const pendingRequests = await requestRepository.find({
+    // Automatically remove fulfilled requests for this media so they do not linger in the Requests queue
+    const requestsToClean = await requestRepository.find({
       where: {
         media: { id: media.id },
         is4k,
-        status: In([MediaRequestStatus.PENDING, MediaRequestStatus.APPROVED]),
       },
     });
 
-    for (const preq of pendingRequests) {
-      preq.status = MediaRequestStatus.COMPLETED;
-      await requestRepository.save(preq);
+    if (requestsToClean.length > 0) {
+      await requestRepository.remove(requestsToClean);
     }
+
 
     logger.info(`Marked media TMDb ${tmdbId} as AVAILABLE via auto-sync`, {
       label: 'Media',
@@ -79,7 +78,44 @@ mediaRoutes.post('/by-tmdb/:tmdbId/available', async (req, res, next) => {
   }
 });
 
+mediaRoutes.post('/:id/available', async (req, res, next) => {
+  try {
+    const mediaRepository = getRepository(Media);
+    const requestRepository = getRepository(MediaRequest);
+    const mediaId = Number(req.params.id);
+    const is4k = String(req.body.is4k) === 'true';
+
+    const media = await mediaRepository.findOne({
+      where: { id: mediaId },
+    });
+
+    if (!media) {
+      return res.status(404).json({ message: 'Media not found' });
+    }
+
+    media[is4k ? 'status4k' : 'status'] = MediaStatus.AVAILABLE;
+    media.mediaAddedAt = new Date();
+    await mediaRepository.save(media);
+
+    const requestsToClean = await requestRepository.find({
+      where: {
+        media: { id: media.id },
+        is4k,
+      },
+    });
+
+    if (requestsToClean.length > 0) {
+      await requestRepository.remove(requestsToClean);
+    }
+
+    return res.status(200).json(media);
+  } catch (e) {
+    return next({ status: 500, message: e.message });
+  }
+});
+
 mediaRoutes.get('/by-tmdb/:tmdbId', async (req, res, next) => {
+
   try {
     const mediaRepository = getRepository(Media);
     const media = await mediaRepository.findOne({

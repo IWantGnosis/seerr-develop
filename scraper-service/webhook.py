@@ -111,8 +111,9 @@ def check_is_indian_movie(tmdb_id):
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
+
 
 
 job_cancel_events = {}
@@ -401,6 +402,22 @@ def delete_job(job_id):
         return jsonify({"status": "deleted", "job_id": job_id}), 200
 
     return jsonify({"error": "Job not found"}), 404
+
+
+@app.route("/api/downloads/clear-completed", methods=["POST", "DELETE", "OPTIONS"])
+def clear_completed_downloads():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    cleared = []
+    for jid, job in list(jobs.items()):
+        if job.get("status") in ["COMPLETED", "FAILED", "CANCELLED"]:
+            cleared.append(jid)
+            del jobs[jid]
+
+    print(f"[Scraper] Cleared {len(cleared)} finished jobs from history.")
+    return jsonify({"cleared": cleared, "count": len(cleared)}), 200
+
 
 
 @app.route("/api/logs", methods=["GET"])
