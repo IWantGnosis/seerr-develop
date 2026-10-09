@@ -11,7 +11,7 @@
         "version": "1.0.0.0",
         "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
         "targetAbi": "12.1.0.0",
-        "sourceUrl": "http://192.168.29.75:5000/plugins/AutoFix.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
         "checksum": "5d6d146328d1a4587032a8cf88719669",
         "timestamp": "2026-10-09T00:00:00Z"
       },
@@ -19,7 +19,7 @@
         "version": "1.0.0.0",
         "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "http://192.168.29.75:5000/plugins/AutoFix.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
         "checksum": "5d6d146328d1a4587032a8cf88719669",
         "timestamp": "2026-10-09T00:00:00Z"
       },
@@ -27,7 +27,7 @@
         "version": "1.0.0.0",
         "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
         "targetAbi": "10.10.0.0",
-        "sourceUrl": "http://192.168.29.75:5000/plugins/AutoFix.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
         "checksum": "5d6d146328d1a4587032a8cf88719669",
         "timestamp": "2026-10-09T00:00:00Z"
       },
@@ -35,7 +35,7 @@
         "version": "1.0.0.0",
         "changelog": "Initial release: Pre-scan sanitizer, TMDb matcher, artwork injector, scheduled task.",
         "targetAbi": "10.9.0.0",
-        "sourceUrl": "http://192.168.29.75:5000/plugins/AutoFix.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
         "checksum": "5d6d146328d1a4587032a8cf88719669",
         "timestamp": "2026-10-09T00:00:00Z"
       }
