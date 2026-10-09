@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AutoFix Configuration</title>
+</head>
+<body>
+    <div id="AutoFixConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="AutoFixConfigForm">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">AutoFix — Automated Movie Matcher & Artwork Healer</h2>
+                    </div>
+                    <p style="color: #a0aec0; margin-bottom: 1.5em; font-size: 0.95em;">
+                        Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy torrent/download release names, resolving TMDb IDs, and automatically injecting posters and backdrops.
+                    </p>
+
+                    <div class="verticalSection">
+                        <h3 class="checkboxListLabel" style="margin-bottom: 0.5em; font-weight: 600;">Core Healing Features</h3>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" id="chkEnableSanitizer" is="emby-checkbox" />
+                                <span>Pre-Scan Name Sanitizer</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Strips release tags (1080p, WEB-DL, 10bit, Dual Audio, MoviesMod, etc.), replaces dots and underscores with clean spaces, and isolates the movie title &amp; year before Jellyfin searches.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
+                            <label>
+                                <input type="checkbox" id="chkEnableFuzzyMatcher" is="emby-checkbox" />
+                                <span>Multi-Tier Fuzzy Matcher</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                If direct search yields zero matches, automatically retries without release year and searches franchise root keywords to guarantee a TMDb match.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
+                            <label>
+                                <input type="checkbox" id="chkEnableAutoArtwork" is="emby-checkbox" />
+                                <span>Auto Artwork Injector</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Automatically pulls primary poster, backdrop, and logo images directly from TMDb, ensuring items never display as blank placeholder squares.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1em;">
+                            <label>
+                                <input type="checkbox" id="chkEnableInPlaceRenaming" is="emby-checkbox" />
+                                <span>Optional In-Place File Renamer</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription" style="color: #f6ad55;">
+                                ⚠️ Advanced: When a match is verified, safely renames the file on disk to standard format: <code>Movie Title (Year) [tmdbid-XXXXX].ext</code>.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection" style="margin-top: 2em;">
+                        <h3 class="checkboxListLabel" style="margin-bottom: 0.5em; font-weight: 600;">API & Custom Filters</h3>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtTmdbApiKey">TMDb API Key (Optional)</label>
+                            <input type="text" id="txtTmdbApiKey" is="emby-input" class="emby-input" placeholder="Leave blank to use built-in client key" />
+                            <div class="fieldDescription">
+                                If left blank, the built-in community TMDb API key will be used automatically.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="txtCustomTags">Custom Release Tags to Strip</label>
+                            <input type="text" id="txtCustomTags" is="emby-input" class="emby-input" />
+                            <div class="fieldDescription">
+                                Comma-separated list of release groups, trackers, or website domains to strip from filenames.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2em; display: flex; gap: 1em; align-items: center;">
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save Settings</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="verticalSection" style="margin-top: 2.5em; padding: 1.2em; background: rgba(255, 255, 255, 0.04); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <h3 style="margin-top: 0; font-size: 1.1em; color: #63b3ed;">💡 Scheduled Healing</h3>
+                    <p style="margin-bottom: 0.5em; color: #cbd5e0; font-size: 0.9em;">
+                        AutoFix registers a scheduled task in your Jellyfin Dashboard under <strong>Server &rarr; Scheduled Tasks &rarr; AutoFix: Heal Missing Posters &amp; Metadata</strong>.
+                    </p>
+                    <p style="margin: 0; color: #a0aec0; font-size: 0.85em;">
+                        You can click <em>Play</em> on that task at any time to run a full sweep across your existing library and heal all grey squares.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            (function() {
+                var pluginId = 'd34db33f-c1e4-4d2a-89a1-55c3c0ffee01';
+
+                function loadConfig() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function(config) {
+                        document.querySelector('#chkEnableSanitizer').checked = config.EnableSanitizer !== false;
+                        document.querySelector('#chkEnableFuzzyMatcher').checked = config.EnableFuzzyMatcher !== false;
+                        document.querySelector('#chkEnableAutoArtwork').checked = config.EnableAutoArtwork !== false;
+                        document.querySelector('#chkEnableInPlaceRenaming').checked = config.EnableInPlaceRenaming === true;
+                        document.querySelector('#txtTmdbApiKey').value = config.TmdbApiKey || '';
+                        document.querySelector('#txtCustomTags').value = config.CustomTagsToStrip || '';
+                        Dashboard.hideLoadingMsg();
+                    });
+                }
+
+                document.querySelector('#AutoFixConfigPage').addEventListener('pageshow', function() {
+                    loadConfig();
+                });
+
+                document.querySelector('#AutoFixConfigForm').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(pluginId).then(function(config) {
+                        config.EnableSanitizer = document.querySelector('#chkEnableSanitizer').checked;
+                        config.EnableFuzzyMatcher = document.querySelector('#chkEnableFuzzyMatcher').checked;
+                        config.EnableAutoArtwork = document.querySelector('#chkEnableAutoArtwork').checked;
+                        config.EnableInPlaceRenaming = document.querySelector('#chkEnableInPlaceRenaming').checked;
+                        config.TmdbApiKey = document.querySelector('#txtTmdbApiKey').value;
+                        config.CustomTagsToStrip = document.querySelector('#txtCustomTags').value;
+
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(function(result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
