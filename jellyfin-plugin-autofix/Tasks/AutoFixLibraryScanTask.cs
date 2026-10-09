@@ -244,11 +244,50 @@ public class AutoFixLibraryScanTask : IScheduledTask
                 File.Move(currentPath, newPath);
                 movie.Path = newPath;
                 _logger.LogInformation("AutoFix: In-place cleanly renamed movie file on disk from '{Old}' to '{New}'", currentPath, newPath);
+
+                // Also rename matching companion subtitle files (.srt, .vtt, .sub, etc.)
+                string oldBaseName = Path.GetFileNameWithoutExtension(currentPath);
+                string newBaseName = $"{safeTitle}{yearPart}";
+                RenameCompanionSubtitleFiles(dir, oldBaseName, newBaseName);
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "AutoFix: Could not rename movie file '{Path}'", movie.Path);
+        }
+    }
+
+    private void RenameCompanionSubtitleFiles(string dir, string oldBaseName, string newBaseName)
+    {
+        try
+        {
+            var subtitleExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".srt", ".vtt", ".sub", ".idx", ".smi", ".ass", ".ssa" };
+            var files = Directory.GetFiles(dir);
+            foreach (var file in files)
+            {
+                string ext = Path.GetExtension(file);
+                if (!subtitleExts.Contains(ext))
+                {
+                    continue;
+                }
+
+                string nameWithoutExt = Path.GetFileNameWithoutExtension(file);
+                if (nameWithoutExt.StartsWith(oldBaseName, StringComparison.OrdinalIgnoreCase))
+                {
+                    string suffix = nameWithoutExt.Substring(oldBaseName.Length);
+                    string newSubName = $"{newBaseName}{suffix}{ext}";
+                    string newSubPath = Path.Combine(dir, newSubName);
+                    if (!string.Equals(file, newSubPath, StringComparison.OrdinalIgnoreCase) && !File.Exists(newSubPath))
+                    {
+                        File.Move(file, newSubPath);
+                        _logger.LogInformation("AutoFix: In-place cleanly renamed subtitle file from '{Old}' to '{New}'", file, newSubPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AutoFix: Failed to rename companion subtitle files in '{Dir}'", dir);
         }
     }
 }
