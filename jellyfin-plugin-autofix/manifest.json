@@ -3,40 +3,40 @@
     "guid": "d34db33f-c1e4-4d2a-89a1-55c3c0ffee01",
     "name": "AutoFix",
     "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans movie and subtitle filenames in-place.",
-    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and cleanly renaming media and subtitle files on disk without deleting any files.",
+    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and cleanly renaming media and subtitle files on disk using confirmed Jellyfin metadata.",
     "owner": "IWantGnosis",
     "category": "General",
     "versions": [
       {
-        "version": "1.0.3.0",
-        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie and companion subtitle filenames without deleting any media files.",
+        "version": "1.0.4.0",
+        "changelog": "v1.0.4: Confirmed Metadata In-Place Renamer. Renames movies and companion subtitles directly to Jellyfin's confirmed Name (Year) without regex guessing. Zero deletions.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "f07d77bca7df1059c993927e8518c4bf",
+        "checksum": "5dc9e7f3e138a8e67fae4ffbf5b6b76a",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.3.0",
-        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie and companion subtitle filenames without deleting any media files.",
+        "version": "1.0.4.0",
+        "changelog": "v1.0.4: Confirmed Metadata In-Place Renamer. Renames movies and companion subtitles directly to Jellyfin's confirmed Name (Year) without regex guessing. Zero deletions.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "f07d77bca7df1059c993927e8518c4bf",
+        "checksum": "5dc9e7f3e138a8e67fae4ffbf5b6b76a",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.3.0",
-        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie and companion subtitle filenames without deleting any media files.",
+        "version": "1.0.4.0",
+        "changelog": "v1.0.4: Confirmed Metadata In-Place Renamer. Renames movies and companion subtitles directly to Jellyfin's confirmed Name (Year) without regex guessing. Zero deletions.",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "f07d77bca7df1059c993927e8518c4bf",
+        "checksum": "5dc9e7f3e138a8e67fae4ffbf5b6b76a",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.3.0",
-        "changelog": "v1.0.3: SAFE IN-PLACE RENAMING ONLY. Removed all file deletion logic. Safely cleans movie and companion subtitle filenames without deleting any media files.",
+        "version": "1.0.4.0",
+        "changelog": "v1.0.4: Confirmed Metadata In-Place Renamer. Renames movies and companion subtitles directly to Jellyfin's confirmed Name (Year) without regex guessing. Zero deletions.",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "f07d77bca7df1059c993927e8518c4bf",
+        "checksum": "5dc9e7f3e138a8e67fae4ffbf5b6b76a",
         "timestamp": "2026-10-09T00:00:00Z"
       }
     ]

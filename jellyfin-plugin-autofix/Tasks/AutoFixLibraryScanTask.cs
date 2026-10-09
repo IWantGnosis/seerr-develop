@@ -184,8 +184,8 @@ public class AutoFixLibraryScanTask : IScheduledTask
             bool missingPrimaryImage = !movie.HasImage(ImageType.Primary);
             bool missingTmdb = string.IsNullOrEmpty(movie.GetProviderId(MetadataProvider.Tmdb));
 
-            // Safely rename file on disk to clean title (removes dots & release tags, NO DELETIONS)
-            if (!string.IsNullOrWhiteSpace(movie.Path) && File.Exists(movie.Path))
+            // Safely rename file on disk to clean title using confirmed Jellyfin information (NO DELETIONS)
+            if (!string.IsNullOrWhiteSpace(movie.Path))
             {
                 var cfg = Plugin.Instance?.Configuration;
                 if (cfg?.EnableInPlaceRenaming != false)
@@ -216,44 +216,94 @@ public class AutoFixLibraryScanTask : IScheduledTask
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(movie.Path) || !File.Exists(movie.Path))
+            if (string.IsNullOrWhiteSpace(movie.Path))
             {
                 return;
             }
 
-            string currentPath = movie.Path;
-            string fileName = Path.GetFileName(currentPath);
-            var parsed = CleanTitleParser.Parse(fileName, Plugin.Instance?.Configuration.CustomTagsToStrip);
+            // 1. Resolve video file path (whether movie.Path points to a file or a folder)
+            string? currentVideoFile = null;
+            if (File.Exists(movie.Path))
+            {
+                currentVideoFile = movie.Path;
+            }
+            else if (Directory.Exists(movie.Path))
+            {
+                var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".mkv", ".mp4", ".avi", ".mov", ".m4v", ".ts", ".webm", ".wmv"
+                };
+                currentVideoFile = Directory.GetFiles(movie.Path)
+                    .FirstOrDefault(f => videoExtensions.Contains(Path.GetExtension(f)));
+            }
 
-            if (!parsed.WasModified || string.IsNullOrWhiteSpace(parsed.CleanTitle))
+            if (string.IsNullOrWhiteSpace(currentVideoFile) || !File.Exists(currentVideoFile))
+            {
+                _logger.LogDebug("AutoFix: No video file found for movie '{Name}' at '{Path}'", movie.Name, movie.Path);
+                return;
+            }
+
+            // 2. Use confirmed Jellyfin metadata (Title and ProductionYear) as the source of truth
+            string confirmedTitle = !string.IsNullOrWhiteSpace(movie.Name) ? movie.Name : string.Empty;
+            int? confirmedYear = movie.ProductionYear;
+
+            // Fallback to title parser if movie.Name is empty
+            if (string.IsNullOrWhiteSpace(confirmedTitle))
+            {
+                string rawFileName = Path.GetFileName(currentVideoFile);
+                var parsed = CleanTitleParser.Parse(rawFileName, Plugin.Instance?.Configuration.CustomTagsToStrip);
+                confirmedTitle = parsed.CleanTitle;
+                confirmedYear ??= parsed.Year;
+            }
+
+            if (string.IsNullOrWhiteSpace(confirmedTitle))
             {
                 return;
             }
 
-            string dir = Path.GetDirectoryName(currentPath) ?? string.Empty;
-            string ext = Path.GetExtension(currentPath);
+            // 3. Sanitize filesystem invalid characters (: / \ * ? " < > |) into clean spaces/dashes
             char[] invalidChars = Path.GetInvalidFileNameChars();
-            string safeTitle = new string(parsed.CleanTitle.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
-            int? year = parsed.Year ?? movie.ProductionYear;
-            string yearPart = year.HasValue ? $" ({year.Value})" : string.Empty;
-            string newFileName = $"{safeTitle}{yearPart}{ext}";
+            string safeTitle = new string(confirmedTitle.Select(c => invalidChars.Contains(c) ? ' ' : c).ToArray()).Trim();
+            safeTitle = System.Text.RegularExpressions.Regex.Replace(safeTitle, @"\s+", " ");
+
+            string yearPart = confirmedYear.HasValue && confirmedYear.Value > 1900 ? $" ({confirmedYear.Value})" : string.Empty;
+            string targetBaseName = $"{safeTitle}{yearPart}".Trim();
+
+            string dir = Path.GetDirectoryName(currentVideoFile) ?? string.Empty;
+            string ext = Path.GetExtension(currentVideoFile);
+            string currentBaseName = Path.GetFileNameWithoutExtension(currentVideoFile);
+            string newFileName = $"{targetBaseName}{ext}";
             string newPath = Path.Combine(dir, newFileName);
 
-            if (!string.Equals(currentPath, newPath, StringComparison.OrdinalIgnoreCase) && !File.Exists(newPath))
+            // 4. Compare: if file is already cleanly named, skip
+            if (string.Equals(currentBaseName, targetBaseName, StringComparison.OrdinalIgnoreCase))
             {
-                File.Move(currentPath, newPath);
-                movie.Path = newPath;
-                _logger.LogInformation("AutoFix: In-place cleanly renamed movie file on disk from '{Old}' to '{New}'", currentPath, newPath);
+                _logger.LogInformation("AutoFix: Movie '{Name}' is already cleanly named: '{File}'", movie.Name, Path.GetFileName(currentVideoFile));
+                return;
+            }
 
-                // Also rename matching companion subtitle files (.srt, .vtt, .sub, etc.)
-                string oldBaseName = Path.GetFileNameWithoutExtension(currentPath);
-                string newBaseName = $"{safeTitle}{yearPart}";
-                RenameCompanionSubtitleFiles(dir, oldBaseName, newBaseName);
+            // 5. Safely rename the file and companion subtitles (NO DELETIONS)
+            if (!File.Exists(newPath))
+            {
+                File.Move(currentVideoFile, newPath);
+                if (string.Equals(movie.Path, currentVideoFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    movie.Path = newPath;
+                }
+
+                _logger.LogInformation("AutoFix: In-place cleanly renamed movie file from '{Old}' to '{New}' (Confirmed Jellyfin metadata)", currentVideoFile, newPath);
+
+                // Also rename matching companion subtitle files (.srt, .vtt, etc.)
+                RenameCompanionSubtitleFiles(dir, currentBaseName, targetBaseName);
+            }
+            else
+            {
+                _logger.LogWarning("AutoFix: Cannot rename '{Old}' because target '{New}' already exists on disk.", currentVideoFile, newPath);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "AutoFix: Could not rename movie file '{Path}'", movie.Path);
+            _logger.LogError(ex, "AutoFix: Failed to rename movie file for '{Name}' at '{Path}'. (Check Linux write permissions for 'jellyfin' user)", movie.Name, movie.Path);
         }
     }
 
