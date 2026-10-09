@@ -10,6 +10,7 @@ using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.AutoFix.Common;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
@@ -123,6 +124,57 @@ public class AutoFixLibraryScanTask : IScheduledTask
         return new List<Movie>();
     }
 
+    private List<Episode> GetEpisodesFromLibrary()
+    {
+        var query = new InternalItemsQuery
+        {
+            IncludeItemTypes = new[] { BaseItemKind.Episode },
+            Recursive = true,
+            IsVirtualItem = false
+        };
+
+        try
+        {
+            var getItemListMethod = _libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+            if (getItemListMethod != null)
+            {
+                var result = getItemListMethod.Invoke(_libraryManager, new object[] { query });
+                if (result is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Episode>().ToList();
+                }
+            }
+
+            var getItemsResultMethod = _libraryManager.GetType().GetMethod("GetItemsResult", new[] { typeof(InternalItemsQuery) });
+            if (getItemsResultMethod != null)
+            {
+                var queryResult = getItemsResultMethod.Invoke(_libraryManager, new object[] { query });
+                var itemsProp = queryResult?.GetType().GetProperty("Items");
+                if (itemsProp?.GetValue(queryResult) is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Episode>().ToList();
+                }
+            }
+
+            var queryItemsMethod = _libraryManager.GetType().GetMethod("QueryItems", new[] { typeof(InternalItemsQuery) });
+            if (queryItemsMethod != null)
+            {
+                var queryResult = queryItemsMethod.Invoke(_libraryManager, new object[] { query });
+                var itemsProp = queryResult?.GetType().GetProperty("Items");
+                if (itemsProp?.GetValue(queryResult) is IEnumerable enumerable)
+                {
+                    return enumerable.OfType<Episode>().ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AutoFix: Failed to query episode items from library manager dynamically.");
+        }
+
+        return new List<Episode>();
+    }
+
     private void QueueMovieRefresh(Movie movie)
     {
         try
@@ -162,21 +214,26 @@ public class AutoFixLibraryScanTask : IScheduledTask
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("AutoFix: Starting library healing scan...");
+        _logger.LogInformation("AutoFix: Starting library healing and in-place renaming scan...");
 
         var movies = GetMoviesFromLibrary();
+        var episodes = GetEpisodesFromLibrary();
 
-        if (movies.Count == 0)
+        int totalItems = movies.Count + episodes.Count;
+        if (totalItems == 0)
         {
-            _logger.LogInformation("AutoFix: No movies found in library or library query returned empty.");
+            _logger.LogInformation("AutoFix: No movies or episodes found in library or library query returned empty.");
             progress.Report(100.0);
             return;
         }
 
         int healedCount = 0;
-        int total = movies.Count;
+        int processedCount = 0;
+        var cfg = Plugin.Instance?.Configuration;
+        bool inPlaceRenaming = cfg?.EnableInPlaceRenaming != false;
 
-        for (int i = 0; i < total; i++)
+        // 1. Process Movies
+        for (int i = 0; i < movies.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -184,14 +241,9 @@ public class AutoFixLibraryScanTask : IScheduledTask
             bool missingPrimaryImage = !movie.HasImage(ImageType.Primary);
             bool missingTmdb = string.IsNullOrEmpty(movie.GetProviderId(MetadataProvider.Tmdb));
 
-            // Safely rename file on disk to clean title using confirmed Jellyfin information (NO DELETIONS)
-            if (!string.IsNullOrWhiteSpace(movie.Path))
+            if (inPlaceRenaming && !string.IsNullOrWhiteSpace(movie.Path))
             {
-                var cfg = Plugin.Instance?.Configuration;
-                if (cfg?.EnableInPlaceRenaming != false)
-                {
-                    TryCleanRename(movie);
-                }
+                TryCleanRename(movie);
             }
 
             if (missingPrimaryImage || missingTmdb)
@@ -203,11 +255,29 @@ public class AutoFixLibraryScanTask : IScheduledTask
                 healedCount++;
             }
 
-            double percent = ((double)(i + 1) / total) * 100.0;
+            processedCount++;
+            double percent = ((double)processedCount / totalItems) * 100.0;
             progress.Report(percent);
         }
 
-        _logger.LogInformation("AutoFix: Scan completed. Queued healing for {Count} of {Total} movies.", healedCount, total);
+        // 2. Process TV Episodes
+        for (int i = 0; i < episodes.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var episode = episodes[i];
+            if (inPlaceRenaming && !string.IsNullOrWhiteSpace(episode.Path))
+            {
+                TryCleanRenameEpisode(episode);
+            }
+
+            processedCount++;
+            double percent = ((double)processedCount / totalItems) * 100.0;
+            progress.Report(percent);
+        }
+
+        _logger.LogInformation("AutoFix: Scan completed. Processed {MoviesCount} movies and {EpisodesCount} episodes.",
+            movies.Count, episodes.Count);
         progress.Report(100.0);
         await Task.CompletedTask;
     }
@@ -304,6 +374,106 @@ public class AutoFixLibraryScanTask : IScheduledTask
         catch (Exception ex)
         {
             _logger.LogError(ex, "AutoFix: Failed to rename movie file for '{Name}' at '{Path}'. (Check Linux write permissions for 'jellyfin' user)", movie.Name, movie.Path);
+        }
+    }
+
+    private void TryCleanRenameEpisode(Episode episode)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(episode.Path))
+            {
+                return;
+            }
+
+            string? currentVideoFile = null;
+            if (File.Exists(episode.Path))
+            {
+                currentVideoFile = episode.Path;
+            }
+            else if (Directory.Exists(episode.Path))
+            {
+                var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".mkv", ".mp4", ".avi", ".mov", ".m4v", ".ts", ".webm", ".wmv"
+                };
+                currentVideoFile = Directory.GetFiles(episode.Path)
+                    .FirstOrDefault(f => videoExtensions.Contains(Path.GetExtension(f)));
+            }
+
+            if (string.IsNullOrWhiteSpace(currentVideoFile) || !File.Exists(currentVideoFile))
+            {
+                return;
+            }
+
+            // 1. Get Series name
+            string seriesName = !string.IsNullOrWhiteSpace(episode.SeriesName)
+                ? episode.SeriesName
+                : (episode.Series?.Name ?? string.Empty);
+
+            if (string.IsNullOrWhiteSpace(seriesName))
+            {
+                var seasonDir = Path.GetDirectoryName(currentVideoFile);
+                var showDir = Path.GetDirectoryName(seasonDir);
+                seriesName = Path.GetFileName(showDir) ?? string.Empty;
+            }
+
+            int seasonNumber = episode.ParentIndexNumber ?? 1;
+            int episodeNumber = episode.IndexNumber ?? 1;
+            string episodeTitle = !string.IsNullOrWhiteSpace(episode.Name) ? episode.Name : string.Empty;
+
+            // 2. Sanitize series name and title
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            string safeSeries = new string(seriesName.Select(c => invalidChars.Contains(c) ? ' ' : c).ToArray()).Trim();
+            safeSeries = System.Text.RegularExpressions.Regex.Replace(safeSeries, @"\s+", " ");
+
+            string safeTitle = new string(episodeTitle.Select(c => invalidChars.Contains(c) ? ' ' : c).ToArray()).Trim();
+            safeTitle = System.Text.RegularExpressions.Regex.Replace(safeTitle, @"\s+", " ");
+
+            bool isGenericTitle = string.IsNullOrWhiteSpace(safeTitle)
+                || safeTitle.Equals($"Episode {episodeNumber}", StringComparison.OrdinalIgnoreCase)
+                || safeTitle.Equals($"Episode {episodeNumber:D2}", StringComparison.OrdinalIgnoreCase);
+
+            string targetBaseName = isGenericTitle
+                ? $"{safeSeries} - S{seasonNumber:D2}E{episodeNumber:D2}".Trim(' ', '-')
+                : $"{safeSeries} - S{seasonNumber:D2}E{episodeNumber:D2} - {safeTitle}".Trim(' ', '-');
+
+            string dir = Path.GetDirectoryName(currentVideoFile) ?? string.Empty;
+            string ext = Path.GetExtension(currentVideoFile);
+            string currentBaseName = Path.GetFileNameWithoutExtension(currentVideoFile);
+            string newFileName = $"{targetBaseName}{ext}";
+            string newPath = Path.Combine(dir, newFileName);
+
+            // 3. Skip if already cleanly named
+            if (string.Equals(currentBaseName, targetBaseName, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("AutoFix: Episode '{Series} S{Season:D2}E{Ep:D2}' is already cleanly named: '{File}'",
+                    seriesName, seasonNumber, episodeNumber, Path.GetFileName(currentVideoFile));
+                return;
+            }
+
+            // 4. Safely rename file and companion subtitles (NO DELETIONS)
+            if (!File.Exists(newPath))
+            {
+                File.Move(currentVideoFile, newPath);
+                if (string.Equals(episode.Path, currentVideoFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    episode.Path = newPath;
+                }
+
+                _logger.LogInformation("AutoFix: In-place cleanly renamed episode file from '{Old}' to '{New}' (Confirmed Jellyfin metadata)",
+                    currentVideoFile, newPath);
+
+                RenameCompanionSubtitleFiles(dir, currentBaseName, targetBaseName);
+            }
+            else
+            {
+                _logger.LogWarning("AutoFix: Cannot rename '{Old}' because target '{New}' already exists on disk.", currentVideoFile, newPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AutoFix: Failed to rename episode file at '{Path}'", episode.Path);
         }
     }
 

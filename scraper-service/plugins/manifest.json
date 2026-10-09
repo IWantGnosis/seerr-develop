@@ -2,41 +2,41 @@
   {
     "guid": "d34db33f-c1e4-4d2a-89a1-55c3c0ffee01",
     "name": "AutoFix",
-    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans movie and subtitle filenames in-place.",
-    "overview": "Permanently eliminates blank grey boxes in Jellyfin by pre-cleaning messy release names, resolving TMDb IDs, injecting artwork, and cleanly renaming media and subtitle files on disk using confirmed Jellyfin metadata.",
+    "description": "Automatically sanitizes messy release titles, resolves missing TMDb metadata, injects posters, and cleans movie and TV episode filenames in-place.",
+    "overview": "Permanently eliminates blank grey boxes in Jellyfin by resolving TMDb IDs, injecting artwork, and cleanly in-place renaming movies, TV series episodes, and subtitles directly from confirmed Jellyfin metadata.",
     "owner": "IWantGnosis",
     "category": "General",
     "versions": [
       {
-        "version": "1.0.4.0",
-        "changelog": "v1.0.4: Clean build without conflicting host assemblies. In-place renames movies and subtitles directly from confirmed Jellyfin metadata. Zero file deletions.",
+        "version": "1.0.5.0",
+        "changelog": "v1.0.5: Added TV Series Episode In-Place Renamer. Renames episodes into 'Series - S01E01 - Title.ext' and matching subtitles directly from confirmed Jellyfin metadata. Zero deletions.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "d302a34795e5072aaac033e3bcf587d1",
+        "checksum": "0e9b8147e21c1e71f39a7c922e31d750",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.4.0",
-        "changelog": "v1.0.4: Clean build without conflicting host assemblies. In-place renames movies and subtitles directly from confirmed Jellyfin metadata. Zero file deletions.",
+        "version": "1.0.5.0",
+        "changelog": "v1.0.5: Added TV Series Episode In-Place Renamer. Renames episodes into 'Series - S01E01 - Title.ext' and matching subtitles directly from confirmed Jellyfin metadata. Zero deletions.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "d302a34795e5072aaac033e3bcf587d1",
+        "checksum": "0e9b8147e21c1e71f39a7c922e31d750",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.4.0",
-        "changelog": "v1.0.4: Clean build without conflicting host assemblies. In-place renames movies and subtitles directly from confirmed Jellyfin metadata. Zero file deletions.",
+        "version": "1.0.5.0",
+        "changelog": "v1.0.5: Added TV Series Episode In-Place Renamer. Renames episodes into 'Series - S01E01 - Title.ext' and matching subtitles directly from confirmed Jellyfin metadata. Zero deletions.",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "d302a34795e5072aaac033e3bcf587d1",
+        "checksum": "0e9b8147e21c1e71f39a7c922e31d750",
         "timestamp": "2026-10-09T00:00:00Z"
       },
       {
-        "version": "1.0.4.0",
-        "changelog": "v1.0.4: Clean build without conflicting host assemblies. In-place renames movies and subtitles directly from confirmed Jellyfin metadata. Zero file deletions.",
+        "version": "1.0.5.0",
+        "changelog": "v1.0.5: Added TV Series Episode In-Place Renamer. Renames episodes into 'Series - S01E01 - Title.ext' and matching subtitles directly from confirmed Jellyfin metadata. Zero deletions.",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/IWantGnosis/seerr-develop/main/jellyfin-plugin-autofix/AutoFix.zip",
-        "checksum": "d302a34795e5072aaac033e3bcf587d1",
+        "checksum": "0e9b8147e21c1e71f39a7c922e31d750",
         "timestamp": "2026-10-09T00:00:00Z"
       }
     ]
