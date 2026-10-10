@@ -96,3 +96,43 @@ export const getScraperLogs = async (): Promise<string[]> => {
   }
   return [];
 };
+
+export interface DownloadSettings {
+  max_concurrent: number;
+  active_count: number;
+  queued_count: number;
+}
+
+export const getDownloadSettings = async (): Promise<DownloadSettings | null> => {
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    const res = await fetch(`http://${host}:5000/api/downloads/settings`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // Scraper offline
+  }
+  return null;
+};
+
+export const updateDownloadSettings = async (
+  maxConcurrent: number
+): Promise<DownloadSettings | null> => {
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    const res = await fetch(`http://${host}:5000/api/downloads/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_concurrent: maxConcurrent }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // Scraper offline
+  }
+  return null;
+};
+
+

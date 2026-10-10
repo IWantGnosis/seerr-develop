@@ -167,6 +167,84 @@ def add_cors_headers(response):
 job_cancel_events = {}
 job_drivers = {}
 
+# ---------------------------------------------------------
+# Concurrency & Download Queue System
+# ---------------------------------------------------------
+MAX_CONCURRENT_DOWNLOADS = int(os.environ.get("MAX_CONCURRENT_DOWNLOADS", "1"))
+download_queue = collections.deque()
+active_jobs = set()
+queue_lock = threading.RLock()
+
+
+def update_queued_job_positions():
+    """
+    Updates the display speed/status for all jobs currently waiting in the queue.
+    """
+    with queue_lock:
+        for idx, q_params in enumerate(download_queue, start=1):
+            jid = q_params["job_id"]
+            if jid in jobs and jobs[jid].get("status") == "QUEUED":
+                jobs[jid]["speed"] = f"Waiting in queue (Position #{idx})"
+
+
+def process_next_in_queue():
+    """
+    Pulls waiting jobs from download_queue until active_jobs reaches MAX_CONCURRENT_DOWNLOADS.
+    """
+    with queue_lock:
+        while len(active_jobs) < MAX_CONCURRENT_DOWNLOADS and download_queue:
+            next_job_params = download_queue.popleft()
+            next_id = next_job_params["job_id"]
+
+            # Skip cancelled, failed, or completed jobs
+            if next_id not in jobs or jobs[next_id].get("status") in ("CANCELLED", "FAILED", "COMPLETED"):
+                print(f"[Queue] Skipping inactive job {next_id} from queue.")
+                continue
+
+            active_jobs.add(next_id)
+            jobs[next_id]["status"] = "SEARCHING"
+            jobs[next_id]["speed"] = "0 MB/s"
+            title = jobs[next_id].get("title", next_id)
+            print(f"[Queue] Dequeued '{title}' (ID: {next_id}). Starting download! (Active: {len(active_jobs)}/{MAX_CONCURRENT_DOWNLOADS})")
+
+            thread = threading.Thread(
+                target=run_scraper_job,
+                kwargs=next_job_params,
+                daemon=True,
+            )
+            thread.start()
+
+        update_queued_job_positions()
+
+
+def enqueue_or_start_job(job_params):
+    """
+    If active_jobs < MAX_CONCURRENT_DOWNLOADS, starts immediately.
+    Otherwise, marks status as 'QUEUED' and appends to download_queue.
+    """
+    job_id = job_params["job_id"]
+    with queue_lock:
+        if len(active_jobs) < MAX_CONCURRENT_DOWNLOADS:
+            active_jobs.add(job_id)
+            jobs[job_id]["status"] = "SEARCHING"
+            jobs[job_id]["speed"] = "0 MB/s"
+            title = jobs[job_id].get("title", job_id)
+            print(f"[Queue] Slot available ({len(active_jobs)}/{MAX_CONCURRENT_DOWNLOADS}). Starting '{title}' immediately.")
+            thread = threading.Thread(
+                target=run_scraper_job,
+                kwargs=job_params,
+                daemon=True,
+            )
+            thread.start()
+        else:
+            jobs[job_id]["status"] = "QUEUED"
+            download_queue.append(job_params)
+            position = len(download_queue)
+            jobs[job_id]["speed"] = f"Waiting in queue (Position #{position})"
+            title = jobs[job_id].get("title", job_id)
+            print(f"[Queue] Limit ({MAX_CONCURRENT_DOWNLOADS}) reached. '{title}' queued at position #{position}.")
+
+
 
 def mark_seerr_media_available(media_id=None, tmdb_id=None, is_4k=False):
     """
@@ -332,6 +410,10 @@ def run_scraper_job(job_id, movie_title, tmdb_id, poster_path, preferred_quality
                 pass
         job_cancel_events.pop(job_id, None)
 
+        with queue_lock:
+            active_jobs.discard(job_id)
+            process_next_in_queue()
+
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -373,20 +455,27 @@ def webhook():
         "year": year,
         "posterPath": poster_path,
         "quality": preferred_quality,
-        "status": "SEARCHING",
+        "status": "QUEUED",
         "progress": 0,
-        "speed": "0 MB/s",
+        "speed": "Waiting in queue",
         "source": site_source,
         "destination": dest_folder,
         "startedAt": "Just now",
     }
 
-    thread = threading.Thread(
-        target=run_scraper_job,
-        args=(job_id, movie_title, tmdb_id, poster_path, preferred_quality, is_indian, dest_folder, media_id, is_4k),
-        daemon=True,
-    )
-    thread.start()
+    job_params = {
+        "job_id": job_id,
+        "movie_title": movie_title,
+        "tmdb_id": tmdb_id,
+        "poster_path": poster_path,
+        "preferred_quality": preferred_quality,
+        "is_indian": is_indian,
+        "download_folder": dest_folder,
+        "media_id": media_id,
+        "is_4k": is_4k,
+    }
+
+    enqueue_or_start_job(job_params)
 
     return jsonify({
         "status": "received",
@@ -413,6 +502,14 @@ def cancel_job(job_id):
         return "", 200
 
     if job_id in jobs:
+        with queue_lock:
+            for item in list(download_queue):
+                if item.get("job_id") == job_id:
+                    download_queue.remove(item)
+            active_jobs.discard(job_id)
+            update_queued_job_positions()
+            process_next_in_queue()
+
         # Signal cancellation
         event = job_cancel_events.get(job_id)
         if event:
@@ -438,9 +535,16 @@ def cancel_job(job_id):
 @app.route("/api/downloads/<job_id>", methods=["DELETE", "POST", "OPTIONS"])
 @app.route("/api/downloads/<job_id>/delete", methods=["POST", "DELETE", "OPTIONS"])
 def delete_job(job_id):
-
     if request.method == "OPTIONS":
         return "", 200
+
+    with queue_lock:
+        for item in list(download_queue):
+            if item.get("job_id") == job_id:
+                download_queue.remove(item)
+        active_jobs.discard(job_id)
+        update_queued_job_positions()
+        process_next_in_queue()
 
     # Cancel if active
     event = job_cancel_events.get(job_id)
@@ -464,6 +568,32 @@ def delete_job(job_id):
         return jsonify({"status": "deleted", "job_id": job_id}), 200
 
     return jsonify({"error": "Job not found"}), 404
+
+
+@app.route("/api/downloads/settings", methods=["GET", "POST", "OPTIONS"])
+def download_settings():
+    global MAX_CONCURRENT_DOWNLOADS
+    if request.method == "OPTIONS":
+        return "", 200
+
+    if request.method == "POST":
+        data = request.json or {}
+        new_max = data.get("max_concurrent")
+        if new_max is not None:
+            try:
+                MAX_CONCURRENT_DOWNLOADS = max(1, min(int(new_max), 5))
+                print(f"[Queue] Concurrency limit updated to: {MAX_CONCURRENT_DOWNLOADS}")
+                with queue_lock:
+                    process_next_in_queue()
+            except (ValueError, TypeError):
+                pass
+
+    with queue_lock:
+        return jsonify({
+            "max_concurrent": MAX_CONCURRENT_DOWNLOADS,
+            "active_count": len(active_jobs),
+            "queued_count": len(download_queue),
+        }), 200
 
 
 @app.route("/api/downloads/clear-completed", methods=["POST", "DELETE", "OPTIONS"])

@@ -6,6 +6,7 @@ import type {
 } from '@app/components/Downloads/downloadService';
 import {
   CheckCircleIcon,
+  ClockIcon,
   ExclamationCircleIcon,
   NoSymbolIcon,
   XCircleIcon,
@@ -127,7 +128,9 @@ const DownloadJobCard = ({ job, onCancel, onDelete }: DownloadJobCardProps) => {
           <div className="mt-4">
             <div className="mb-1 flex items-center justify-between text-sm text-gray-300">
               <span>Progress</span>
-              <span className="font-semibold text-gray-100">{job.progress}%</span>
+              <span className="font-semibold text-gray-100">
+                {job.status === 'QUEUED' ? 'In Queue' : `${job.progress}%`}
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-700">
               <div
@@ -136,9 +139,11 @@ const DownloadJobCard = ({ job, onCancel, onDelete }: DownloadJobCardProps) => {
                     ? 'bg-red-500'
                     : job.status === 'COMPLETED'
                     ? 'bg-green-500'
+                    : job.status === 'QUEUED'
+                    ? 'bg-amber-500/60 animate-pulse'
                     : 'bg-indigo-500'
                 }`}
-                style={{ width: `${job.progress}%` }}
+                style={{ width: job.status === 'QUEUED' ? '100%' : `${job.progress}%` }}
               />
             </div>
           </div>
@@ -171,6 +176,12 @@ const DownloadJobCard = ({ job, onCancel, onDelete }: DownloadJobCardProps) => {
               </div>
             )}
           </dl>
+          {job.status === 'QUEUED' && (
+            <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-950/40 p-2.5 text-xs text-amber-300 border border-amber-800/40">
+              <ClockIcon className="h-4 w-4 flex-shrink-0 text-amber-400" />
+              <span>Waiting in download queue. Will start automatically once preceding downloads complete.</span>
+            </div>
+          )}
           {job.status === 'CANCELLED' && (
             <p className="mt-3 flex items-center gap-1.5 text-sm text-yellow-400">
               <NoSymbolIcon className="h-5 w-5 flex-shrink-0" />

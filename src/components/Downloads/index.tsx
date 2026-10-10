@@ -8,7 +8,9 @@ import {
   clearCompletedDownloads,
   deleteDownloadJob,
   getDownloadJobs,
+  getDownloadSettings,
   getScraperLogs,
+  updateDownloadSettings,
   type DownloadJob,
   type DownloadStatus,
 } from '@app/components/Downloads/downloadService';
@@ -16,6 +18,8 @@ import {
   ArrowPathIcon,
   CommandLineIcon,
   ExclamationTriangleIcon,
+  QueueListIcon,
+  Square2StackIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 
@@ -63,14 +67,30 @@ const Downloads = () => {
     revalidateOnFocus: true,
   });
 
+  const { data: settings, mutate: mutateSettings } = useSWR(
+    'downloads/settings',
+    getDownloadSettings,
+    {
+      refreshInterval: 4000,
+    }
+  );
+
+  const handleSetConcurrency = async (val: number) => {
+    await updateDownloadSettings(val);
+    await mutateSettings();
+    await mutate();
+  };
+
   const handleCancelJob = async (jobId: string) => {
     await cancelDownloadJob(jobId);
     await mutate();
+    await mutateSettings();
   };
 
   const handleDeleteJob = async (jobId: string) => {
     await deleteDownloadJob(jobId);
     await mutate();
+    await mutateSettings();
   };
 
   const handleClearCompleted = async () => {
@@ -101,8 +121,49 @@ const Downloads = () => {
     <>
       <PageTitle title="Downloads" />
       <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <Header>Downloads</Header>
+        <div>
+          <Header>Downloads</Header>
+          {settings && settings.queued_count > 0 && (
+            <p className="mt-1 text-xs text-amber-400">
+              ⚡ {settings.queued_count} movie{settings.queued_count > 1 ? 's' : ''} currently waiting in queue
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Concurrency Mode Selector */}
+          <div
+            className="flex items-center rounded-lg bg-gray-900/90 p-1 border border-gray-800"
+            role="group"
+            aria-label="Download concurrency mode"
+          >
+            <button
+              type="button"
+              onClick={() => handleSetConcurrency(1)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition focus:outline-none ${
+                (settings?.max_concurrent ?? 1) === 1
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              title="Download 1 movie at a time sequentially (Others wait in queue)"
+            >
+              <QueueListIcon className="h-4 w-4" />
+              <span>1 at a time (Queue)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetConcurrency(2)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition focus:outline-none ${
+                settings?.max_concurrent === 2
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              title="Run 2 headless browsers simultaneously to download 2 movies at once"
+            >
+              <Square2StackIcon className="h-4 w-4" />
+              <span>2 Simultaneous</span>
+            </button>
+          </div>
+
           {hasFinishedJobs && (
             <button
               type="button"
@@ -131,7 +192,6 @@ const Downloads = () => {
             <CommandLineIcon className="h-4 w-4" />
             <span>{showLogs ? 'Hide Scraper Logs' : 'View Scraper Logs'}</span>
           </button>
-
 
           <div
             className="flex gap-2 overflow-x-auto pb-1"
