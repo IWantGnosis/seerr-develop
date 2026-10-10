@@ -23,11 +23,48 @@ export interface DownloadJob {
   completedAt?: string;
 }
 
+const requestScraperApi = async (
+  endpoint: string,
+  options?: RequestInit
+): Promise<Response | null> => {
+  const host =
+    typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+
+  // 1. Try same-origin /scraper-api proxy first (avoids CORS & external port blocks)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`/scraper-api${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) return res;
+  } catch {
+    // Proxy unavailable or timed out
+  }
+
+  // 2. Direct port 5000 fallback
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`http://${host}:5000/api${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) return res;
+  } catch {
+    // Port 5000 offline
+  }
+
+  return null;
+};
+
 export const getDownloadJobs = async (): Promise<DownloadJob[]> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads`);
-    if (res.ok) {
+    const res = await requestScraperApi('/downloads');
+    if (res && res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
         return data;
@@ -41,11 +78,10 @@ export const getDownloadJobs = async (): Promise<DownloadJob[]> => {
 
 export const cancelDownloadJob = async (jobId: string): Promise<boolean> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/${jobId}/cancel`, {
+    const res = await requestScraperApi(`/downloads/${jobId}/cancel`, {
       method: 'POST',
     });
-    return res.ok;
+    return !!res?.ok;
   } catch {
     return false;
   }
@@ -53,39 +89,34 @@ export const cancelDownloadJob = async (jobId: string): Promise<boolean> => {
 
 export const deleteDownloadJob = async (jobId: string): Promise<boolean> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/${jobId}/delete`, {
+    const res = await requestScraperApi(`/downloads/${jobId}/delete`, {
       method: 'POST',
     });
-    if (res.ok) return true;
-    const res2 = await fetch(`http://${host}:5000/api/downloads/${jobId}`, {
+    if (res?.ok) return true;
+    const res2 = await requestScraperApi(`/downloads/${jobId}`, {
       method: 'DELETE',
     });
-    return res2.ok;
+    return !!res2?.ok;
   } catch {
     return false;
   }
 };
-
 
 export const clearCompletedDownloads = async (): Promise<boolean> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/clear-completed`, {
+    const res = await requestScraperApi('/downloads/clear-completed', {
       method: 'POST',
     });
-    return res.ok;
+    return !!res?.ok;
   } catch {
     return false;
   }
 };
 
-
 export const getScraperLogs = async (): Promise<string[]> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/logs`);
-    if (res.ok) {
+    const res = await requestScraperApi('/logs');
+    if (res && res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
         return data;
@@ -105,9 +136,8 @@ export interface DownloadSettings {
 
 export const getDownloadSettings = async (): Promise<DownloadSettings | null> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/settings`);
-    if (res.ok) {
+    const res = await requestScraperApi('/downloads/settings');
+    if (res && res.ok) {
       return await res.json();
     }
   } catch {
@@ -120,13 +150,12 @@ export const updateDownloadSettings = async (
   maxConcurrent: number
 ): Promise<DownloadSettings | null> => {
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const res = await fetch(`http://${host}:5000/api/downloads/settings`, {
+    const res = await requestScraperApi('/downloads/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ max_concurrent: maxConcurrent }),
     });
-    if (res.ok) {
+    if (res && res.ok) {
       return await res.json();
     }
   } catch {

@@ -12,5 +12,8 @@
       "@server/*": ["*"]
     }
   },
+  "ts-node": {
+    "transpileOnly": true
+  },
   "include": ["**/*.ts"]
 }

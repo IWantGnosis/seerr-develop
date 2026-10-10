@@ -48,6 +48,9 @@ import next from 'next';
 import { parse } from 'node:url';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
+import axios from 'axios';
+import { spawn, type ChildProcess } from 'child_process';
+import net from 'net';
 
 const API_SPEC_PATH = path.join(__dirname, '../seerr-api.yml');
 
@@ -55,6 +58,97 @@ logger.info(`Starting Seerr version ${getAppVersion()}`);
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev, dir: path.resolve(__dirname, '..') });
 const handle = app.getRequestHandler();
+
+let scraperChild: ChildProcess | null = null;
+
+const checkPortOpen = (port: number, host = '127.0.0.1'): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(800);
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once('error', () => {
+      resolve(false);
+    });
+    socket.connect(port, host);
+  });
+};
+
+const startLocalScraperService = async () => {
+  const scraperPath = path.resolve(__dirname, '../scraper-service/webhook.py');
+  try {
+    const exists = await fs
+      .stat(scraperPath)
+      .then(() => true)
+      .catch(() => false);
+    if (!exists) {
+      return;
+    }
+
+    const isRunning = await checkPortOpen(5000);
+    if (isRunning) {
+      logger.info('Scraper service is already active on port 5000', {
+        label: 'Scraper',
+      });
+      return;
+    }
+
+    logger.info(
+      'Starting integrated local Scraper service on port 5000 (webhook.py)...',
+      {
+        label: 'Scraper',
+      }
+    );
+    const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
+    scraperChild = spawn(pythonBin, [scraperPath], {
+      cwd: path.resolve(__dirname, '../scraper-service'),
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        SEERR_API_URL:
+          process.env.SEERR_API_URL || 'http://127.0.0.1:5055/api/v1',
+      },
+    });
+
+    scraperChild.on('error', (err) => {
+      logger.warn(`Failed to auto-start local scraper service: ${err.message}`, {
+        label: 'Scraper',
+      });
+    });
+
+    scraperChild.on('exit', (code) => {
+      if (code && code !== 0) {
+        logger.warn(`Local scraper service exited with code ${code}`, {
+          label: 'Scraper',
+        });
+      }
+    });
+
+    const cleanup = () => {
+      if (scraperChild && !scraperChild.killed) {
+        try {
+          scraperChild.kill();
+        } catch {}
+        scraperChild = null;
+      }
+    };
+
+    process.once('exit', cleanup);
+    process.once('SIGINT', cleanup);
+    process.once('SIGTERM', cleanup);
+  } catch (e) {
+    logger.warn(
+      `Could not initialize local scraper service: ${(e as Error).message}`,
+      { label: 'Scraper' }
+    );
+  }
+};
 
 if (!appDataPermissions()) {
   logger.error(
@@ -269,6 +363,31 @@ app
 
     server.use('/api/v1', routes);
 
+    // Reverse proxy for scraper service API (same-origin, CORS-free)
+    server.use('/scraper-api', async (req, res) => {
+      try {
+        const scraperHost = process.env.SCRAPER_URL || 'http://127.0.0.1:5000';
+        const targetUrl = `${scraperHost}/api${req.url}`;
+        const response = await axios({
+          method: req.method,
+          url: targetUrl,
+          data: req.body,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 4000,
+        });
+        res.status(response.status).json(response.data);
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { status: number; data: unknown } };
+        if (axiosErr.response) {
+          res.status(axiosErr.response.status).json(axiosErr.response.data);
+        } else {
+          res.status(502).json({ error: 'Scraper service offline' });
+        }
+      }
+    });
+
     // Do not set cookies so CDNs can cache them
     server.use('/imageproxy', clearCookies, imageproxy);
     server.use('/avatarproxy', clearCookies, avatarproxy);
@@ -303,12 +422,14 @@ app
         logger.info(`Server ready on ${host} port ${port}`, {
           label: 'Server',
         });
+        startLocalScraperService();
       });
     } else {
       httpServer = server.listen(port, () => {
         logger.info(`Server ready on port ${port}`, {
           label: 'Server',
         });
+        startLocalScraperService();
       });
     }
     httpServer.on('error', (err) => {
