@@ -147,7 +147,7 @@ const Downloads = () => {
               title="Download 1 movie at a time sequentially (Others wait in queue)"
             >
               <QueueListIcon className="h-4 w-4" />
-              <span>1 at a time (Queue)</span>
+              <span>1 at a time</span>
             </button>
             <button
               type="button"
@@ -161,6 +161,19 @@ const Downloads = () => {
             >
               <Square2StackIcon className="h-4 w-4" />
               <span>2 Simultaneous</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetConcurrency(3)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition focus:outline-none ${
+                settings?.max_concurrent === 3
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              title="Run 3 headless browsers simultaneously to download 3 movies at once"
+            >
+              <Square2StackIcon className="h-4 w-4" />
+              <span>3 Simultaneous</span>
             </button>
           </div>
 
